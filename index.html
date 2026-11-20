@@ -3901,7 +3901,175 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
         // OFFLINE GAZETTEER — 171k towns, villages & suburbs (no internet needed)
         // Powers search, Route Explorer, Sites-to-Visit pinning and the zoomed-in towns layer.
         // =====================================================================
-        const GAZ = { names: [], norm: [], lat: null, lng: null, cc: [], grid: new Map(), loaded: false };
+        const GAZ = { names: [], norm: [], lat: null, lng: null, cc: [], grid: new Map(), loaded: false, region: new Map() };
+        // Popular islands, regions, parks & landmarks that aren't towns (Bali, Santorini, Kruger, Garden Route…)
+        const REGIONS_RAW = `Bali|ID|-8.40|115.19|9
+Lombok|ID|-8.65|116.32|9
+Gili Islands|ID|-8.35|116.05|12
+Komodo|ID|-8.55|119.48|10
+Java|ID|-7.30|110.00|7
+Sumatra|ID|-0.50|101.50|6
+Seminyak|ID|-8.69|115.16|14
+Canggu|ID|-8.65|115.13|14
+Nusa Penida|ID|-8.73|115.54|11
+Raja Ampat|ID|-0.50|130.50|9
+Phi Phi Islands|TH|7.74|98.77|12
+Koh Samui|TH|9.51|100.01|11
+Koh Phangan|TH|9.74|100.03|11
+Koh Tao|TH|10.10|99.84|12
+Krabi|TH|8.09|98.91|10
+Langkawi|MY|6.35|99.80|11
+Borneo|MY|1.00|114.00|6
+Boracay|PH|11.97|121.92|13
+Palawan|PH|10.00|118.80|8
+El Nido|PH|11.18|119.39|12
+Siargao|PH|9.85|126.05|11
+Ha Long Bay|VN|20.91|107.18|11
+Phu Quoc|VN|10.23|103.96|10
+Hokkaido|JP|43.20|142.80|7
+Okinawa|JP|26.33|127.80|9
+Mount Fuji|JP|35.36|138.73|11
+Jeju Island|KR|33.38|126.55|10
+Goa|IN|15.30|74.00|9
+Kerala|IN|10.40|76.30|8
+Rajasthan|IN|26.60|73.80|7
+Ladakh|IN|34.20|77.50|8
+Himalayas|NP|28.00|84.50|7
+Everest Base Camp|NP|28.00|86.85|11
+Maldives|MV|3.20|73.22|7
+Zanzibar|TZ|-6.13|39.31|9
+Serengeti|TZ|-2.33|34.83|9
+Ngorongoro Crater|TZ|-3.18|35.58|11
+Kilimanjaro|TZ|-3.07|37.35|10
+Masai Mara|KE|-1.49|35.14|10
+Amboseli|KE|-2.65|37.26|10
+Lake Malawi|MW|-12.00|34.50|8
+Okavango Delta|BW|-19.30|22.90|8
+Chobe|BW|-18.50|24.50|9
+Etosha|NA|-18.85|16.33|9
+Sossusvlei|NA|-24.73|15.29|11
+Skeleton Coast|NA|-20.00|13.30|8
+Victoria Falls|ZW|-17.92|25.86|12
+Kruger National Park|ZA|-24.00|31.50|8
+Garden Route|ZA|-34.00|22.80|8
+Cape Winelands|ZA|-33.85|19.00|10
+Cederberg|ZA|-32.40|19.10|10
+Drakensberg|ZA|-29.20|29.40|9
+Wild Coast|ZA|-32.30|29.00|8
+Namaqualand|ZA|-30.00|17.80|8
+Cape Point|ZA|-34.35|18.50|12
+Table Mountain|ZA|-33.96|18.41|13
+Robben Island|ZA|-33.81|18.37|13
+Addo Elephant Park|ZA|-33.45|25.75|10
+Pilanesberg|ZA|-25.25|27.10|11
+Mauritius|MU|-20.25|57.55|10
+Seychelles|SC|-4.68|55.49|10
+Reunion|RE|-21.12|55.53|10
+Madagascar|MG|-19.00|46.70|6
+Sahara|MA|31.10|-4.00|7
+Atlas Mountains|MA|31.10|-7.90|8
+Cape Verde|CV|16.00|-24.00|8
+Canary Islands|ES|28.30|-15.80|7
+Tenerife|ES|28.29|-16.63|10
+Gran Canaria|ES|27.92|-15.60|10
+Lanzarote|ES|29.04|-13.63|10
+Mallorca|ES|39.62|2.98|9
+Ibiza|ES|38.98|1.43|10
+Menorca|ES|39.95|4.08|10
+Costa del Sol|ES|36.55|-4.70|9
+Andalusia|ES|37.40|-4.60|7
+Madeira|PT|32.75|-16.95|10
+Azores|PT|38.00|-27.50|7
+Algarve|PT|37.10|-8.20|9
+Douro Valley|PT|41.16|-7.79|10
+Santorini|GR|36.39|25.46|11
+Mykonos|GR|37.45|25.37|12
+Crete|GR|35.24|24.80|8
+Corfu|GR|39.62|19.92|10
+Rhodes|GR|36.20|28.00|10
+Zakynthos|GR|37.78|20.90|10
+Cyclades|GR|37.00|25.00|8
+Sicily|IT|37.60|14.10|8
+Sardinia|IT|40.10|9.00|8
+Amalfi Coast|IT|40.63|14.60|11
+Capri|IT|40.55|14.24|13
+Tuscany|IT|43.40|11.10|8
+Lake Como|IT|46.00|9.27|10
+Lake Garda|IT|45.65|10.65|10
+Dolomites|IT|46.45|11.85|9
+Cinque Terre|IT|44.12|9.72|12
+Puglia|IT|40.90|16.70|8
+Corsica|FR|42.15|9.10|8
+Provence|FR|43.90|5.50|8
+French Riviera|FR|43.60|7.10|9
+Loire Valley|FR|47.40|0.70|8
+Normandy|FR|49.20|-0.40|8
+Bordeaux Wine Region|FR|44.85|-0.50|9
+Chamonix|FR|45.92|6.87|11
+Bavaria|DE|48.80|11.50|7
+Black Forest|DE|48.20|8.20|8
+Rhine Valley|DE|50.10|7.75|9
+Moselle Valley|DE|49.95|7.10|9
+Swiss Alps|CH|46.55|7.95|8
+Lake Geneva|CH|46.45|6.55|10
+Austrian Alps|AT|47.20|11.40|8
+Tyrol|AT|47.25|11.40|8
+Lake Bled|SI|46.36|14.09|13
+Plitvice Lakes|HR|44.88|15.62|12
+Dalmatian Coast|HR|43.50|16.40|8
+Hvar|HR|43.17|16.62|11
+Bay of Kotor|ME|42.45|18.65|11
+Cappadocia|TR|38.65|34.85|10
+Pamukkale|TR|37.92|29.12|13
+Scottish Highlands|GB|57.20|-4.80|7
+Isle of Skye|GB|57.30|-6.20|9
+Lake District|GB|54.50|-3.10|10
+Cotswolds|GB|51.85|-1.80|10
+Cornwall|GB|50.40|-4.90|9
+Ring of Kerry|IE|51.95|-10.00|10
+Cliffs of Moher|IE|52.97|-9.43|13
+Lofoten|NO|68.20|14.00|9
+Norwegian Fjords|NO|61.00|6.50|7
+Lapland|FI|67.50|26.00|6
+Golden Circle|IS|64.30|-20.50|9
+Faroe Islands|FO|62.00|-6.90|8
+Dead Sea|JO|31.50|35.50|10
+Wadi Rum|JO|29.57|35.42|11
+Petra|JO|30.33|35.44|13
+Hawaii|US|20.80|-156.50|7
+Maui|US|20.80|-156.33|10
+Oahu|US|21.47|-157.98|10
+Florida Keys|US|24.85|-81.00|9
+Yosemite|US|37.85|-119.55|10
+Yellowstone|US|44.60|-110.50|9
+Grand Canyon|US|36.10|-112.10|10
+Napa Valley|US|38.40|-122.35|10
+Alaska|US|63.50|-150.00|5
+Route 66|US|35.20|-101.80|6
+Banff National Park|CA|51.50|-116.00|9
+Niagara Falls|CA|43.08|-79.07|13
+Yucatan|MX|20.70|-88.70|8
+Riviera Maya|MX|20.50|-87.25|9
+Galapagos Islands|EC|-0.70|-90.50|8
+Machu Picchu|PE|-13.16|-72.54|13
+Sacred Valley|PE|-13.30|-72.05|10
+Amazon Rainforest|BR|-3.50|-62.00|5
+Iguazu Falls|AR|-25.69|-54.44|12
+Patagonia|AR|-48.00|-70.50|5
+Tierra del Fuego|AR|-54.30|-68.30|8
+Atacama Desert|CL|-23.50|-68.50|8
+Torres del Paine|CL|-51.00|-73.10|10
+Easter Island|CL|-27.12|-109.35|11
+Uyuni Salt Flat|BO|-20.13|-67.49|10
+Great Barrier Reef|AU|-18.30|147.70|6
+Whitsundays|AU|-20.30|148.95|10
+Uluru|AU|-25.34|131.04|12
+Tasmania|AU|-42.00|146.60|7
+Great Ocean Road|AU|-38.68|143.39|9
+Milford Sound|NZ|-44.67|167.93|11
+Bora Bora|PF|-16.50|-151.74|12
+Tahiti|PF|-17.65|-149.43|10
+Caribbean|JM|18.00|-72.00|5`;
         let gazPromise = null;
         const gazNorm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’']/g, "'");
         const ISO_TO_NAME = {};
@@ -3927,6 +4095,7 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
                     const key = Math.floor(la * 2) + ',' + Math.floor(lo * 2);
                     let cell = GAZ.grid.get(key); if (!cell) GAZ.grid.set(key, cell = []); cell.push(i);
                 }
+                REGIONS_RAW.split('\n').forEach(l => { const [n, c, la, lo, z] = l.split('|'); const i = GAZ.names.length; GAZ.names.push(n); GAZ.cc.push(c); lat.push(+la); lng.push(+lo); GAZ.region.set(i, +z); });
                 GAZ.lat = Float64Array.from(lat); GAZ.lng = Float64Array.from(lng);
                 GAZ.norm = GAZ.names.map(gazNorm);
                 GAZ.loaded = true;
@@ -3936,7 +4105,8 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
         }
         function gazPlace(i) {
             const iso = GAZ.cc[i];
-            return { n: GAZ.names[i], a1: '', c: ISO_TO_NAME[iso] || iso, iso, lat: GAZ.lat[i], lng: GAZ.lng[i], pop: 0, mz: 99, cap: 2, gaz: true };
+            const rz = GAZ.region.get(i);
+            return { n: GAZ.names[i], a1: '', c: ISO_TO_NAME[iso] || iso, iso, lat: GAZ.lat[i], lng: GAZ.lng[i], pop: 0, mz: 99, cap: 2, gaz: true, region: rz != null, zoom: rz };
         }
         function countryIsoFromText(txt) {
             const low = gazNorm(txt.trim());
@@ -3944,19 +4114,28 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
             const hit = Object.values(COUNTRY_DB).find(c => gazNorm(c.name) === low || gazNorm(displayName(c.name)) === low);
             return hit ? hit.iso : null;
         }
+        // Split a trailing country off a query, with or without a comma: "Bali Indonesia" → ["Bali", "ID"]
+        const COUNTRY_NAMES = Object.values(COUNTRY_DB).flatMap(c => [[gazNorm(displayName(c.name)), c.iso], [gazNorm(c.name), c.iso]]).filter(x => x[1]).sort((a, b) => b[0].length - a[0].length);
+        function splitCountry(raw) {
+            const q = raw.trim(), comma = q.lastIndexOf(',');
+            if (comma > 0) { const ci = countryIsoFromText(q.slice(comma + 1)); if (ci) return [q.slice(0, comma).trim(), ci]; }
+            const n = gazNorm(q);
+            for (const [cn, iso] of COUNTRY_NAMES) if (n.length > cn.length + 1 && n.endsWith(' ' + cn)) return [q.slice(0, q.length - cn.length).trim(), iso];
+            return [q, null];
+        }
+        window.splitCountry = splitCountry;
         // Exact lookup. Accepts "Parow" or "Parow, South Africa" / "Beckum, DE". countryName limits the search.
         function gazFind(q, _unused, countryName) {
             if (!GAZ.loaded || !q) return null;
             let name = q, iso = countryName ? (COUNTRY_DB[countryName] || {}).iso || countryIsoFromText(countryName) : null;
-            const comma = q.lastIndexOf(',');
-            if (!iso && comma > 0) { const ci = countryIsoFromText(q.slice(comma + 1)); if (ci) { iso = ci; name = q.slice(0, comma); } }
+            if (!iso) { const sp = splitCountry(q); if (sp[1]) { name = sp[0]; iso = sp[1]; } }
             const n = gazNorm(name.trim()); if (!n) return null;
             const hits = [];
             for (let i = 0; i < GAZ.norm.length; i++) if (GAZ.norm[i] === n && (!iso || GAZ.cc[i] === iso)) hits.push(i);
             if (!hits.length) return null;
             // Prefer South Africa (home), then the country selected on the map, then the first match
             const sel = selectedCountryLayer ? (COUNTRY_DB[selectedCountryLayer.feature.properties.name] || {}).iso : null;
-            hits.sort((a, b) => (GAZ.cc[b] === 'ZA') - (GAZ.cc[a] === 'ZA') || (GAZ.cc[b] === sel) - (GAZ.cc[a] === sel));
+            hits.sort((a, b) => GAZ.region.has(b) - GAZ.region.has(a) || (GAZ.cc[b] === 'ZA') - (GAZ.cc[a] === 'ZA') || (GAZ.cc[b] === sel) - (GAZ.cc[a] === sel));
             return gazPlace(hits[0]);
         }
         function gazInBounds(bounds, limit = 900) {
@@ -3965,19 +4144,18 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
             if ((n - s + 1) * (e - w + 1) > 400) return out;      // too far zoomed out
             for (let y = s; y <= n; y++) for (let x = w; x <= e; x++) {
                 const cell = GAZ.grid.get(y + ',' + x); if (!cell) continue;
-                for (const i of cell) { if (bounds.contains([GAZ.lat[i], GAZ.lng[i]])) { out.push(gazPlace(i)); if (out.length >= limit) return out; } }
+                for (const i of cell) { if (!GAZ.region.has(i) && bounds.contains([GAZ.lat[i], GAZ.lng[i]])) { out.push(gazPlace(i)); if (out.length >= limit) return out; } }
             }
             return out;
         }
         function gazSuggest(query, box, input, exclude) {
             if (!GAZ.loaded) { gazReady(); return; }
-            const raw = input.value.trim(), comma = raw.lastIndexOf(',');
-            let q = gazNorm(raw), iso = null;
-            if (comma > 0) { const ci = countryIsoFromText(raw.slice(comma + 1)); if (ci) { iso = ci; q = gazNorm(raw.slice(0, comma).trim()); } }
+            const [namePart, iso] = splitCountry(input.value);
+            const q = gazNorm(namePart);
             if (q.length < 3) return;
             const hits = [];
             for (let i = 0; i < GAZ.norm.length && hits.length < 400; i++) if (GAZ.norm[i].startsWith(q) && (!iso || GAZ.cc[i] === iso)) hits.push(i);
-            hits.sort((a, b) => (GAZ.norm[b] === q) - (GAZ.norm[a] === q) || (GAZ.cc[b] === 'ZA') - (GAZ.cc[a] === 'ZA') || GAZ.names[a].length - GAZ.names[b].length);
+            hits.sort((a, b) => (GAZ.norm[b] === q) - (GAZ.norm[a] === q) || GAZ.region.has(b) - GAZ.region.has(a) || (GAZ.cc[b] === 'ZA') - (GAZ.cc[a] === 'ZA') || GAZ.names[a].length - GAZ.names[b].length);
             let shown = 0;
             for (const i of hits) {
                 if (shown >= 6) break;
@@ -3985,14 +4163,14 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
                 if (exclude.has(t.n.toLowerCase() + '|' + t.iso)) continue;
                 shown++;
                 const item = document.createElement('div'); item.className = 'cursor-pointer';
-                item.innerHTML = `${t.iso ? `<img class="flag" src="${flagUrl(t.iso)}" alt="" onerror="this.style.visibility='hidden'">` : ''}<span class="flex-1">${escapeHtml(t.n)} <span class="text-xs text-gray-400">${escapeHtml(displayName(t.c))}</span></span><span class="count-pill">Town</span>`;
+                item.innerHTML = `${t.iso ? `<img class="flag" src="${flagUrl(t.iso)}" alt="" onerror="this.style.visibility='hidden'">` : ''}<span class="flex-1">${escapeHtml(t.n)} <span class="text-xs text-gray-400">${escapeHtml(displayName(t.c))}</span></span><span class="count-pill">${t.region ? 'Region' : 'Town'}</span>`;
                 item.onclick = () => {
                     box.classList.add('hidden'); input.value = t.n;
                     if (!document.getElementById('toggle-towns').checked) { document.getElementById('toggle-towns').checked = true; setTownsOn(true); }
-                    map.flyTo([t.lat, t.lng], 13, { duration: 1.3 });
+                    map.flyTo([t.lat, t.lng], t.region ? t.zoom : 13, { duration: 1.3 });
                     setTimeout(() => L.popup().setLatLng([t.lat, t.lng]).setContent(townPopup(t)).openOn(map), 1400);
                 };
-                box.appendChild(item);
+                if (t.region && GAZ.norm[i] === q) box.insertBefore(item, box.firstChild); else box.appendChild(item);
             }
             if (shown) box.classList.remove('hidden');
         }
@@ -4042,12 +4220,14 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
                 Object.keys(RAIL_NODES).forEach(n => { if (gazNorm(n).startsWith(q)) push({ value: n, label: n, sub: 'Rail hub', iso: '', icon: '🚆', kind: 'Station', rank: 1 }); });
                 // Built-in towns & suburbs
                 if (GAZ.loaded) {
+                    const [np, ciso] = window.splitCountry ? splitCountry(raw) : [raw, null];
+                    const gq = gazNorm(np.trim());
                     const hits = [];
-                    for (let i = 0; i < GAZ.norm.length && hits.length < 300; i++) if (GAZ.norm[i].startsWith(q)) hits.push(i);
-                    hits.sort((a, b) => (GAZ.norm[b] === q) - (GAZ.norm[a] === q) || (GAZ.cc[b] === 'ZA') - (GAZ.cc[a] === 'ZA') || GAZ.names[a].length - GAZ.names[b].length);
+                    if (gq.length >= 2) for (let i = 0; i < GAZ.norm.length && hits.length < 300; i++) if (GAZ.norm[i].startsWith(gq) && (!ciso || GAZ.cc[i] === ciso)) hits.push(i);
+                    hits.sort((a, b) => (GAZ.norm[b] === gq) - (GAZ.norm[a] === gq) || GAZ.region.has(b) - GAZ.region.has(a) || (GAZ.cc[b] === 'ZA') - (GAZ.cc[a] === 'ZA') || GAZ.names[a].length - GAZ.names[b].length);
                     hits.slice(0, 12).forEach(i => {
-                        const iso = GAZ.cc[i], cname = displayName(ISO_TO_NAME[iso] || iso);
-                        push({ value: `${GAZ.names[i]}, ${cname}`, label: GAZ.names[i], sub: cname, iso, kind: 'Town', rank: GAZ.norm[i] === q ? 1 : 3 });
+                        const iso = GAZ.cc[i], cname = displayName(ISO_TO_NAME[iso] || iso), isReg = GAZ.region.has(i);
+                        push({ value: `${GAZ.names[i]}, ${cname}`, label: GAZ.names[i], sub: cname, iso, kind: isReg ? 'Region' : 'Town', rank: GAZ.norm[i] === gq ? (isReg ? 0 : 1) : (isReg ? 2 : 3) });
                     });
                 }
                 return out.sort((a, b) => a.rank - b.rank).slice(0, 14);
