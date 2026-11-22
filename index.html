@@ -824,7 +824,28 @@
                                     <label class="switch ml-2"><span>Return home at the end</span><input type="checkbox" id="trip-return" checked><span class="track"></span></label>
                                     <button id="trip-clear" class="ml-auto text-xs text-red-400 hover:underline">Clear trip</button>
                                 </div>
-                                <div id="trip-quick" class="flex flex-wrap gap-2 items-center"></div>
+                                <details id="trip-describe-details" class="content-card">
+                                    <summary class="p-3.5 list-none flex items-center gap-2.5 cursor-pointer flex-wrap"><svg class="chev w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg><span class="font-display font-semibold text-purple-300">✍ Describe your trip</span><span class="text-xs text-gray-400">— type or paste your plan in plain words and the builder fills in stops, nights, dates, hotels &amp; transport</span></summary>
+                                    <div class="px-4 pb-4 space-y-3">
+                                        <textarea id="trip-describe" class="custom-textarea w-full p-3 text-sm" style="height:170px" placeholder="Example:
+Leaving from Parow on 12 March 2027.
+Fly to Amsterdam, 3 nights at Hotel V Nesplein (booked, +31 20 662 3233).
+Train to Beckum, Germany for 2 nights.
+Then Munich 12–15 March, staying at Motel One.
+Fly to Bali for a week, then back home."></textarea>
+                                        <div class="flex flex-wrap gap-2 items-center">
+                                            <button id="trip-parse" class="gradient-btn px-5 py-2 rounded-xl text-sm">✦ Build my trip</button>
+                                            <button id="trip-parse-append" class="gradient-btn secondary px-4 py-2 rounded-xl text-sm">+ Add to current trip</button>
+                                            <button id="trip-undo" class="gradient-btn secondary px-4 py-2 rounded-xl text-sm hidden">↶ Undo</button>
+                                            <span class="text-xs text-gray-400">Understands: places &amp; islands · "3 nights" / "a week" / "12–15 March" · fly / train / drive / bus · hotel names · phone, email &amp; booking refs · "booked" · "back home"</span>
+                                        </div>
+                                        <div id="trip-parse-result"></div>
+                                    </div>
+                                </details>
+                                <details id="trip-quick-details" class="content-card">
+                                    <summary class="p-3.5 list-none flex items-center gap-2.5 cursor-pointer"><svg class="chev w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg><span class="font-display font-semibold text-purple-300">Quick add</span><span id="trip-quick-count" class="count-pill">0</span><span class="text-xs text-gray-400">— from your Sites to Visit &amp; wish lists</span></summary>
+                                    <div class="px-4 pb-4"><div id="trip-quick" class="flex flex-wrap gap-2 items-center"></div></div>
+                                </details>
                                 <div id="trip-status" class="hidden text-sm" style="color:#d9b46a"></div>
                                 <div id="trip-summary" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3"></div>
                                 <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-4">
@@ -4380,9 +4401,10 @@ Caribbean|JM|18.00|-72.00|5`;
             }
 
             // ---------- Smart route choice ----------
-            function pickOption(opts, choice) {
+            function pickOption(opts, choice, prefMode) {
                 if (!opts || !opts.length) return null;
                 if (choice && choice !== 'auto') { const m = opts.find(o => o.key === choice); if (m) return m; }
+                if (prefMode) { const m = opts.filter(o => o.mode === prefMode && (prefMode !== 'flight' || !o.segs))[0] || opts.filter(o => o.mode === prefMode)[0]; if (m) return m; }
                 // Smart default: among options within 25% (+1h) of the fastest, take the lowest CO₂ — trains win in Europe, flights win long-haul
                 const fastest = opts[0].h, ok = opts.filter(o => o.h <= fastest * 1.25 + 1);
                 return ok.sort((a, b) => a.co2 - b.co2)[0];
@@ -4410,7 +4432,7 @@ Caribbean|JM|18.00|-72.00|5`;
                         if (!force && p.leg.cache && OPT.has(optKey(p.from, p.to))) continue;
                         st.classList.remove('hidden'); st.textContent = `Working out leg ${i + 1} of ${pairs.length}: ${p.from.name} → ${p.to.name}…`;
                         const opts = await legOptions(p.from, p.to);
-                        p.leg.cache = summary(pickOption(opts, p.leg.choice));
+                        p.leg.cache = summary(pickOption(opts, p.leg.choice, p.leg.prefMode));
                         p.leg.optionsLite = opts.map(o => ({ key: o.key, title: o.title, h: o.h, mode: o.mode, combo: !!o.segs }));
                     }
                 } catch (e) { console.error(e); showMessage('Some routes could not be calculated.', 'error'); }
@@ -4768,7 +4790,8 @@ Caribbean|JM|18.00|-72.00|5`;
                 const wish = Object.entries(countryCategories).filter(([n, c]) => c !== 'visited').map(([n]) => n).slice(0, 8);
                 const chips = [...sites.map(s => ({ label: `📍 ${s.name}`, q: `${s.name}, ${displayName(s.country)}`, lat: s.lat, lng: s.lng, country: s.country, name: s.name })),
                 ...wish.map(n => ({ label: `${countryCategories[n] === 'topWishlist' ? '★' : '♡'} ${displayName(n)}`, q: displayName(n) }))].filter(c => !have.has(c.q.toLowerCase()));
-                document.getElementById('trip-quick').innerHTML = chips.length ? `<span class="text-xs uppercase tracking-widest text-gray-400 font-semibold mr-1">Quick add</span>` + chips.map((c, i) => `<button class="chip gradient-btn secondary trip-quick" data-i="${i}" style="padding:.35rem .8rem;font-size:.75rem">${escapeHtml(c.label)}</button>`).join('') : '';
+                document.getElementById('trip-quick-count').textContent = chips.length;
+                document.getElementById('trip-quick').innerHTML = !chips.length ? '<span class="text-xs text-gray-400">Nothing to add — mark countries on the map or add Sites to Visit.</span>' : chips.map((c, i) => `<button class="chip gradient-btn secondary trip-quick" data-i="${i}" style="padding:.35rem .8rem;font-size:.75rem">${escapeHtml(c.label)}</button>`).join('');
                 document.getElementById('trip-quick')._chips = chips;
             }
 
@@ -4851,6 +4874,183 @@ Caribbean|JM|18.00|-72.00|5`;
                 showMessage(`${B.name} added to your trip`);
             };
 
+            // ---------- Describe-your-trip parser (offline, rule-based) ----------
+            const MONTHS_RX = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11, januarie: 0, februarie: 1, maart: 2, mei: 4, junie: 5, julie: 6, augustus: 7, oktober: 9, desember: 11 };
+            const NUMW = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, twenty: 20, couple: 2, few: 3 };
+            const STOPW = new Set(('home back then fly flying flight flights train trains rail drive driving car hire rental bus coach ferry boat via and the with for in at on by to from into of my our we i will then after before next finally morning evening afternoon night nights day days week weeks month stay staying spend spending visit visiting explore exploring go going head heading leave leaving depart departing arrive arriving return returning trip holiday booked book hotel hostel airbnb lodge resort inn apartment guesthouse ' +
+                'around about approx approximately until till also maybe probably plus first second third last start starting end ending total').split(' '));
+            const MONTH_WORDS = new Set(Object.keys(MONTHS_RX).concat(['january', 'february', 'march', 'april', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']));
+            const COUNTRY_RX_LIST = Object.values(COUNTRY_DB).flatMap(c => [displayName(c.name), c.name]).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => b.length - a.length);
+            const escRx = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const COMMA_COUNTRY_RX = new RegExp(',\\s*(' + COUNTRY_RX_LIST.map(escRx).join('|') + ')\\b', 'gi');
+            const monthIdx = w => { const k = w.toLowerCase().replace(/\.$/, ''); if (MONTHS_RX[k] != null) return MONTHS_RX[k]; const k3 = k.slice(0, 3); return k.length >= 3 && MONTHS_RX[k3] != null && 'january february march april june july august september october november december'.split(' ').some(m => m.startsWith(k)) ? MONTHS_RX[k3] : null; };
+            function mkDate(y, m, d, ref) {
+                if (y == null) { const base = ref || new Date(); y = base.getUTCFullYear(); const t = Date.UTC(y, m, d); if (t < Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()) - DAY) y++; }
+                if (y < 100) y += 2000;
+                const t = Date.UTC(y, m, d); return isNaN(t) || d < 1 || d > 31 || m < 0 || m > 11 ? null : t;
+            }
+            // Returns { start, end } (ms, UTC) found in a segment, plus the matched text so it can be removed
+            function findDates(seg, ref) {
+                const MON = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|maart|mei|junie|julie|oktober|desember)\\.?';
+                const pats = [
+                    [new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s*(?:-|–|—|to|till|until|tot)\\s*(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MON}(?:,?\\s+(\\d{4}))?`, 'i'), m => { const mo = monthIdx(m[3]), y = m[4] ? +m[4] : null; return [mkDate(y, mo, +m[1], ref), mkDate(y, mo, +m[2], ref)]; }],
+                    [new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MON}\\s*(?:-|–|—|to|till|until)\\s*(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MON}(?:,?\\s+(\\d{4}))?`, 'i'), m => { const y = m[5] ? +m[5] : null; return [mkDate(y, monthIdx(m[2]), +m[1], ref), mkDate(y, monthIdx(m[4]), +m[3], ref)]; }],
+                    [new RegExp(`\\b${MON}\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s*(?:-|–|—|to)\\s*(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?`, 'i'), m => { const mo = monthIdx(m[1]), y = m[4] ? +m[4] : null; return [mkDate(y, mo, +m[2], ref), mkDate(y, mo, +m[3], ref)]; }],
+                    [/\b(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})\b/, m => [mkDate(+m[1], +m[2] - 1, +m[3], ref)]],
+                    [/\b(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})\b/, m => [mkDate(+m[3], +m[2] - 1, +m[1], ref)]],
+                    [new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MON}(?:,?\\s+(\\d{4}))?`, 'i'), m => [mkDate(m[3] ? +m[3] : null, monthIdx(m[2]), +m[1], ref)]],
+                    [new RegExp(`\\b${MON}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`, 'i'), m => [mkDate(m[3] ? +m[3] : null, monthIdx(m[1]), +m[2], ref)]]
+                ];
+                for (const [rx, fn] of pats) { const m = seg.match(rx); if (m) { const [a, b] = fn(m); if (a != null) return { start: a, end: b != null ? (b < a ? b + 365 * DAY : b) : null, text: m[0] }; } }
+                return null;
+            }
+            function knownPlace(str, lowerOk) {
+                const s = str.trim().replace(/^[^\p{L}]+|[^\p{L}.)']+$/gu, '');
+                if (!s || s.length < 2) return null;
+                const words = s.split(/\s+/);
+                if (words.every(w => STOPW.has(w.toLowerCase()) || MONTH_WORDS.has(w.toLowerCase()) || /^\d/.test(w))) return null;
+                if (!lowerOk && !/^\p{Lu}/u.test(s) && !/^[A-Z]{3}$/.test(s)) return null;
+                if (STOPW.has(words[0].toLowerCase())) return null;
+                const low = s.toLowerCase();
+                if (/^[A-Z]{3}$/.test(s) && APT[s]) return { query: s, kind: 'airport' };
+                if (Object.keys(RAIL_NODES).some(n => n.toLowerCase() === low)) return { query: s, kind: 'city' };
+                if (AIRPORTS.some(a => a.city.toLowerCase() === low)) return { query: s, kind: 'city' };
+                if (Object.values(COUNTRY_DB).some(c => c.name.toLowerCase() === low || displayName(c.name).toLowerCase() === low)) return { query: s, kind: 'country' };
+                if (window.gazFind && gazFind(s)) return { query: s, kind: 'town' };
+                return null;
+            }
+            // Longest-match scan for the first place mentioned in a piece of text (handles "Beckum Germany", "Cape Town", "Bali")
+            function findPlace(text) {
+                const words = text.split(/\s+/).filter(Boolean), lowerOk = text === text.toLowerCase();
+                for (let i = 0; i < words.length; i++) {
+                    for (let len = Math.min(5, words.length - i); len >= 1; len--) {
+                        const cand = words.slice(i, i + len).join(' ');
+                        // try with a following country first ("Beckum Germany")
+                        for (let cl = 3; cl >= 1; cl--) {
+                            if (i + len + cl > words.length) continue;
+                            const ctry = words.slice(i + len, i + len + cl).join(' ').replace(/[^\p{L}\s]/gu, '');
+                            if (Object.values(COUNTRY_DB).some(c => c.name.toLowerCase() === ctry.toLowerCase() || displayName(c.name).toLowerCase() === ctry.toLowerCase())) {
+                                const kp = knownPlace(cand, lowerOk); if (kp && kp.kind !== 'country') return { ...kp, query: `${kp.query}, ${ctry}`, used: words.slice(i, i + len + cl).join(' ') };
+                            }
+                        }
+                        const kp = knownPlace(cand, lowerOk); if (kp) return { ...kp, used: cand };
+                    }
+                }
+                return null;
+            }
+            function parseTripText(raw) {
+                const ref = new Date();
+                let text = raw.replace(/\r/g, '').replace(/[“”]/g, '"').replace(COMMA_COUNTRY_RX, ' $1');
+                const segs = text.split(/\n+|;|→|->|=>|\bthen\b|\band then\b|\bafterwards\b|\bafter that\b|(?<=[a-z0-9)])\.\s+(?=[A-Z])|,\s*(?=(?:fly|flying|train|drive|driving|bus|coach|then|next|finally|ferry|take)\b)/i).map(s => s && s.trim()).filter(Boolean);
+                const out = { home: null, start: null, returnHome: null, stops: [], notes: [], unmatched: [] };
+                const modeOf = s => /\b(fly|flying|flight|plane|airline)\b/i.test(s) ? 'flight' : /\b(train|rail|railway|ice|tgv|eurostar)\b/i.test(s) ? 'train' : /\b(drive|driving|car|rental|road ?trip)\b/i.test(s) ? 'car' : /\b(bus|coach|flixbus)\b/i.test(s) ? 'bus' : null;
+                segs.forEach((seg0, si) => {
+                    let seg = seg0;
+                    // return home / one way
+                    if (/\b(back home|return home|fly home|go home|head home|home again|terug huis)\b/i.test(seg) && !/\bfrom\b/i.test(seg)) { out.returnHome = true; const mode = modeOf(seg); if (mode) out.returnMode = mode; const d = findDates(seg, ref); if (d) out.returnDate = d.start; return; }
+                    if (/\b(one[- ]way|no return)\b/i.test(seg)) { out.returnHome = false; }
+                    let dates = findDates(seg, ref), until = null;
+                    if (dates) {
+                        const before = seg.slice(0, seg.indexOf(dates.text));
+                        if (dates.end == null && /\b(till|until|tot|up to|to|leaving|leave|out|check(?:ing)?[- ]out)\s*(?:on\s+)?(?:the\s+)?$/i.test(before)) { until = dates.start; seg = seg.replace(before.match(/\b(till|until|tot|up to|to|leaving|leave|out|check(?:ing)?[- ]out)\s*(?:on\s+)?(?:the\s+)?$/i)[0] + dates.text, ' '); dates = null; }
+                        else seg = seg.replace(dates.text, ' ');
+                    }
+                    // contacts
+                    const email = (seg.match(/[\w.+-]+@[\w-]+\.[\w.]+/) || [])[0]; if (email) seg = seg.replace(email, ' ');
+                    const phone = (seg.match(/\+?\d[\d\s()-]{7,}\d/) || [])[0]; if (phone) seg = seg.replace(phone, ' ');
+                    const refm = seg.match(/\b(?:ref(?:erence)?|booking|conf(?:irmation)?)\s*(?:no\.?|number|#|:)?\s*([A-Z0-9]{5,})\b/i); if (refm) seg = seg.replace(refm[0], ' ');
+                    const flightNo = seg.match(/\b(?:flight\s+)?([A-Z]{2}\d{2,4})\b/); if (flightNo) seg = seg.replace(flightNo[0], ' flight ');
+                    const time = seg.match(/\b(?:at|leave|leaving|depart(?:ing|s)?|dep)\s*(\d{1,2})[:h](\d{2})\b/i); if (time) seg = seg.replace(time[0], ' ');
+                    const booked = /\bbooked\b/i.test(seg) && !/\bnot booked\b/i.test(seg);
+                    // nights
+                    let nights = null;
+                    const nm = seg.match(/\b(\d{1,3}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|twenty|couple(?: of)?|few)\s*(nights?|days?|weeks?|wks?|nag(?:te)?|dae|weke?)\b/i);
+                    if (nm) { const n = /^\d/.test(nm[1]) ? +nm[1] : NUMW[nm[1].toLowerCase().replace(' of', '')] || 2; const u = nm[2].toLowerCase(); nights = /^w|^wk/.test(u) ? n * 7 : /^d/.test(u) ? Math.max(1, n - 1) : n; seg = seg.replace(nm[0], ' '); }
+                    if (dates && dates.end != null) nights = Math.round((dates.end - dates.start) / DAY);
+                    // accommodation
+                    let stay = null;
+                    const stayRx = [/\b(?:stay(?:ing)?|sleep(?:ing)?|accommodation|lodging|booked)\s+(?:at|in|@|:)\s+([^,;()\n]+?)(?=\s*(?:$|,|;|\(|\)|\bfor\b|\bfrom\b|\buntil\b|\bbooked\b))/i,
+                        /\b(?:at|@)\s+((?:the\s+)?[^,;()\n]*?\b(?:hotel|hostel|inn|resort|lodge|apartments?|airbnb|guest\s?house|b&b|villa|suites?|motel|camp|backpackers)\b[^,;()\n]*?)(?=\s*(?:$|,|;|\(|\)|\bfor\b|\bbooked\b))/i,
+                        /\b((?:hotel|hostel|motel|resort|lodge)\s+[A-Z][^,;()\n]*?)(?=\s*(?:$|,|;|\(|\)|\bfor\b|\bbooked\b))/];
+                    for (const rx of stayRx) { const m = seg.match(rx); if (m) { stay = m[1].trim().replace(/\s+/g, ' '); seg = seg.replace(m[0], ' '); break; } }
+                    // home ("from X", "leaving from X", "home: X")
+                    const homeM = seg.match(/\b(?:leav(?:e|ing)\s+from|depart(?:ing)?\s+from|starting\s+(?:in|at|from)|start\s+(?:in|at|from)|from|home(?:\s+base)?\s*[:=]|based\s+in)\s+(.+?)(?=\s+(?:to|on|and|for|via)\b|$)/i);
+                    if (homeM && (si === 0 || /home/i.test(homeM[0])) && !out.home) {
+                        const hp = findPlace(homeM[1]);
+                        if (hp) { out.home = hp.query; seg = seg.replace(homeM[0], ' '); if (dates && !out.start) out.start = dates.start; if (!findPlace(seg)) { if (time) out.startTime = `${time[1].padStart(2, '0')}:${time[2]}`; return; } }
+                    }
+                    const place = findPlace(seg.replace(/[()"]/g, ' ').replace(/\s+/g, ' '));
+                    if (!place) { if (seg0.trim().length > 2 && !/^\s*(and|then|ok|thanks?)\s*$/i.test(seg0)) out.unmatched.push(seg0.trim()); if (dates && !out.start) out.start = dates.start; return; }
+                    out.stops.push({ query: place.query, kind: place.kind, nights, until, arrive: dates ? dates.start : null, mode: modeOf(seg0), stay, phone: phone && phone.trim(), email, ref: refm ? refm[1] : null, booked, flightNo: flightNo ? flightNo[1] : null, dep: time ? `${time[1].padStart(2, '0')}:${time[2]}` : null, src: seg0.trim() });
+                });
+                // fill nights from consecutive arrival dates, and the trip start from the first dated stop
+                out.stops.forEach((s, i) => { const nx = out.stops[i + 1]; if (s.nights == null && s.arrive != null && nx && nx.arrive != null) s.nights = Math.max(0, Math.round((nx.arrive - s.arrive) / DAY)); });
+                // "until <date>": walk the trip forward from the start date to work out those nights
+                let cursor = out.start != null ? out.start : (out.stops.find(s => s.arrive != null) || {}).arrive;
+                out.stops.forEach(s => {
+                    const arrive = s.arrive != null ? s.arrive : cursor;
+                    if (s.nights == null && s.until != null && arrive != null) s.nights = Math.max(0, Math.round((s.until - arrive) / DAY));
+                    if (arrive != null) cursor = arrive + (s.nights != null ? s.nights : 2) * DAY;
+                });
+                const last = out.stops[out.stops.length - 1];
+                if (last && last.nights == null && last.arrive != null && out.returnDate) last.nights = Math.max(0, Math.round((out.returnDate - last.arrive) / DAY));
+                if (!out.start) { const fd = out.stops.find(s => s.arrive != null); if (fd) out.start = fd.arrive - (fd === out.stops[0] ? 0 : DAY); }
+                out.stops.forEach(s => { if (s.nights == null) { s.nights = 2; s.assumed = true; } });
+                return out;
+            }
+            let undoSnapshot = null;
+            async function buildFromText(append) {
+                const txt = document.getElementById('trip-describe').value.trim();
+                const box = document.getElementById('trip-parse-result');
+                if (!txt) { showMessage('Type or paste your trip first.', 'error'); return; }
+                const btns = ['trip-parse', 'trip-parse-append'].map(id => document.getElementById(id)); btns.forEach(b => b.disabled = true);
+                box.innerHTML = '<div class="text-sm" style="color:#d9b46a">Reading your plan…</div>';
+                try {
+                    if (window.gazReady) { try { await gazReady(); } catch (e) { } }
+                    const parsed = parseTripText(txt);
+                    if (!parsed.stops.length && !parsed.home) { box.innerHTML = `<div class="warn-card high"><span>⚠</span><div>I couldn't find any places in that text. Use place names like <b>Amsterdam</b>, <b>Beckum, Germany</b> or <b>Bali</b>, one stop per line.</div></div>`; return; }
+                    undoSnapshot = JSON.stringify(plannerState.trip || DEF());
+                    const t = T();
+                    T().describe = txt;
+                    if (!append) { t.stops = []; t.returnLeg = { choice: 'auto', ref: '', booked: false, dep: '' }; }
+                    const rows = [];
+                    if (parsed.home) {
+                        const hp = await resolve(parsed.home);
+                        if (hp) { t.home = parsed.home; t.homePlace = hp; rows.push(['ok', `Home base: <b>${escapeHtml(hp.name)}</b>${hp.country ? ', ' + escapeHtml(displayName(hp.country)) : ''}`]); }
+                        else rows.push(['warn', `Couldn't place home "${escapeHtml(parsed.home)}"`]);
+                    } else if (!t.homePlace) {
+                        const hp = await resolve('Cape Town'); if (hp) { t.home = 'Cape Town'; t.homePlace = hp; rows.push(['info', 'No home given — assumed <b>Cape Town</b> (change it above)']); }
+                    }
+                    if (parsed.start && !append) { t.start = ymd(new Date(parsed.start)); rows.push(['ok', `Departure: <b>${fmtDate(parsed.start, { year: 'numeric' })}</b>`]); }
+                    if (parsed.returnHome != null) t.returnHome = parsed.returnHome;
+                    if (parsed.returnMode) t.returnLeg.prefMode = parsed.returnMode;
+                    if (parsed.startTime && parsed.stops[0]) parsed.stops[0].dep = parsed.stops[0].dep || parsed.startTime;
+                    for (const ps of parsed.stops) {
+                        const p = await resolve(ps.query);
+                        if (!p) { rows.push(['warn', `Couldn't find "<b>${escapeHtml(ps.query)}</b>" — add it manually`]); continue; }
+                        const s = newStop(ps.query, p, ps.nights); s.resolvedFor = ps.query;
+                        if (ps.stay) s.stay.name = ps.stay.replace(/^the\s+/i, m => m);
+                        if (ps.phone) s.stay.phone = ps.phone; if (ps.email) s.stay.email = ps.email;
+                        if (ps.ref) s.stay.ref = ps.ref;
+                        if (ps.booked && ps.stay) s.stay.booked = true;
+                        if (ps.mode) s.leg.prefMode = ps.mode;
+                        if (ps.flightNo) s.leg.ref = ps.flightNo; if (ps.booked && !ps.stay && ps.flightNo) s.leg.booked = true;
+                        if (ps.dep) s.leg.dep = ps.dep;
+                        s.notes = ps.src;
+                        t.stops.push(s);
+                        rows.push(['ok', `<span class="stop-num" style="width:20px;height:20px;font-size:10px;display:inline-grid">${t.stops.length}</span> <b>${escapeHtml(p.name)}</b>${p.country ? ` <span class="text-gray-400">${escapeHtml(displayName(p.country))}</span>` : ''} — ${s.nights} night${s.nights === 1 ? '' : 's'}${ps.assumed ? ' <span class="text-amber-400">(assumed)</span>' : ''}${ps.mode ? ` · ${MODE[ps.mode].label.toLowerCase()} preferred` : ''}${ps.stay ? ` · 🏨 ${escapeHtml(ps.stay)}${s.stay.booked ? ' ✓' : ''}` : ''}${ps.phone ? ` · ☎ ${escapeHtml(ps.phone)}` : ''}${ps.flightNo ? ` · ✈ ${escapeHtml(ps.flightNo)}` : ''}`]);
+                    }
+                    parsed.unmatched.forEach(u => rows.push(['info', `Skipped (no place found): "${escapeHtml(u.slice(0, 90))}"`]));
+                    rows.push(['info', `Return home at the end: <b>${t.returnHome ? 'yes' : 'no'}</b>`]);
+                    save(); renderAll(); computeAll();
+                    document.getElementById('trip-undo').classList.remove('hidden');
+                    const col = { ok: '#22c55e', warn: '#f59e0b', info: '#94a3b8' };
+                    box.innerHTML = `<div class="rounded-xl p-3 space-y-1.5" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)"><div class="panel-title mb-1">What I understood</div>${rows.map(([k, h]) => `<div class="text-sm flex items-start gap-2"><span style="color:${col[k]}">${k === 'ok' ? '✓' : k === 'warn' ? '⚠' : 'ℹ'}</span><span>${h}</span></div>`).join('')}<div class="text-xs text-gray-400 pt-1">Everything below is editable — change nights, swap transport, add hotel details or re-order stops.</div></div>`;
+                    showMessage(`Trip built: ${t.stops.length} stop${t.stops.length === 1 ? '' : 's'} — routes are being calculated`);
+                } catch (err) { console.error(err); box.innerHTML = `<div class="warn-card crit"><span>⛔</span><div>Something went wrong reading the plan: ${escapeHtml(err.message || err)}</div></div>`; }
+                finally { btns.forEach(b => b.disabled = false); }
+            }
+
             // ---------- Wiring ----------
             document.addEventListener('DOMContentLoaded', () => {
                 const root = document.getElementById('trip-root');
@@ -4862,6 +5062,11 @@ Caribbean|JM|18.00|-72.00|5`;
                 document.getElementById('trip-travellers').addEventListener('change', e => { T().travellers = Math.max(1, +e.target.value || 1); save(); scheduleRender(); });
                 document.getElementById('trip-return').addEventListener('change', e => { T().returnHome = e.target.checked; T().returnLeg.cache = null; save(); renderAll(); computeAll(); });
                 document.getElementById('trip-add').addEventListener('click', e => { e.preventDefault(); T().stops.push(newStop('', null, 2)); save(); renderAll(); const ins = document.querySelectorAll('.trip-place'); ins[ins.length - 1].focus(); });
+                document.getElementById('trip-parse').addEventListener('click', e => { e.preventDefault(); buildFromText(false); });
+                document.getElementById('trip-parse-append').addEventListener('click', e => { e.preventDefault(); buildFromText(true); });
+                document.getElementById('trip-undo').addEventListener('click', e => { e.preventDefault(); if (!undoSnapshot) return; plannerState.trip = JSON.parse(undoSnapshot); undoSnapshot = null; e.target.classList.add('hidden'); document.getElementById('trip-parse-result').innerHTML = ''; save(); renderAll(); computeAll(); showMessage('Trip restored to how it was before'); });
+                document.getElementById('trip-describe').addEventListener('input', e => { T().describe = e.target.value; save(); });
+                document.getElementById('trip-describe').value = (plannerState.trip && plannerState.trip.describe) || '';
                 document.getElementById('trip-optimise').addEventListener('click', e => { e.preventDefault(); optimiseOrder(); });
                 document.getElementById('trip-recalc').addEventListener('click', e => { e.preventDefault(); OPT.clear(); computeAll(true); });
                 document.getElementById('trip-print').addEventListener('click', e => { e.preventDefault(); printProgram(); });
@@ -4898,7 +5103,7 @@ Caribbean|JM|18.00|-72.00|5`;
                     if (el.classList.contains('leg-choice')) {
                         const leg = legOf(el.dataset.leg); leg.choice = el.value;
                         const pair = legPairs().find(p => p.leg === leg), opts = pair && OPT.get(optKey(pair.from, pair.to));
-                        if (opts) { leg.cache = summary(pickOption(opts, leg.choice)); save(); renderAll(); } else { leg.cache = null; save(); computeAll(); }
+                        if (opts) { if (leg.choice === 'auto') leg.prefMode = null; leg.cache = summary(pickOption(opts, leg.choice, leg.prefMode)); save(); renderAll(); } else { leg.cache = null; save(); computeAll(); }
                         return;
                     }
                     if (el.classList.contains('leg-dep')) { legOf(el.dataset.leg).dep = el.value; save(); scheduleRender(); return; }
