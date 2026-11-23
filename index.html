@@ -5619,20 +5619,64 @@ Caribbean|JM|18.00|-72.00|5`;
                 return computeFlightsTo(oA.iata, APT[D.iata] || D, dCountry).map(o => {
                     const fpts = []; for (let i = 1; i < o.path.length; i++) { const p = o.path[i - 1], q = o.path[i]; const s = haversine([p.lat, p.lng], [q.lat, q.lng]) > 1800 ? gcPath([p.lat, p.lng], [q.lat, q.lng]) : flightArc([p.lat, p.lng], [q.lat, q.lng]); fpts.push(...(i > 1 ? s.slice(1) : s)); }
                     const segs = [];
-                    if (kmA > 3) segs.push({ mode: 'car', pts: [[A.lat, A.lng], [oA.lat, oA.lng]], km: kmA * 1.25 });
-                    segs.push({ mode: 'flight', pts: fpts, km: pathLengthKm(fpts) });
-                    if (kmB > 3) segs.push({ mode: 'car', pts: [[D.lat, D.lng], [B.lat, B.lng]], km: kmB * 1.25 });
-                    const xferWord = km => km * 1.25 < 80 ? 'taxi / Uber' : 'drive';
+                    if (kmA > 3) segs.push({ mode: 'car', xfer: true, pts: [[A.lat, A.lng], [oA.lat, oA.lng]], km: kmA * 1.25, h: kmA * 1.25 / 70, from: A.name, to: `${oA.iata} ${oA.city} airport` });
+                    segs.push({ mode: 'flight', pts: fpts, km: pathLengthKm(fpts), h: o.h, from: `${oA.iata} ${oA.city}`, to: `${D.iata} ${D.city}`, via: o.path.slice(1, -1).map(p => p.iata) });
+                    if (kmB > 3) segs.push({ mode: 'car', xfer: true, pts: [[D.lat, D.lng], [B.lat, B.lng]], km: kmB * 1.25, h: kmB * 1.25 / 70, from: `${D.iata} ${D.city} airport`, to: B.short || B.name });
                     const r = {
-                        mode: 'flight', path: o.path, segs, pts: segs.flatMap(s => s.pts), km: segs.reduce((t, s) => t + s.km, 0),
-                        h: o.h + 2.5 + (kmA + kmB) * 1.25 / 50, air: o.h,
+                        mode: 'flight', path: o.path, segs, pts: segs.flatMap(s => s.pts), air: o.h, hub: { A, B, oA, D, o },
                         title: o.type === 'Non-stop' ? `Non-stop ${oA.iata} → ${D.iata}` : `${o.type}`,
                         airports: [oA.iata, D.iata], via: o.path.slice(1, -1).map(p => p.iata),
-                        detail: `${kmA > 3 ? `${A.name} → ${oA.iata} (${xferWord(kmA)}, ~${Math.round(kmA * 1.25)} km) · ` : ''}${o.path.map(p => `${p.iata} (${p.city})`).join(' → ')} · ~${fmtH(o.h)} flying incl. layovers + ~2h30 check-in${kmB > 3 ? ` · ${D.iata} → ${B.short || B.name} (${xferWord(kmB)}, ~${Math.round(kmB * 1.25)} km)` : ''}`,
                         book: `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${oA.iata} to ${D.iata}`)}`
                     };
-                    r.key = 'flight:' + r.title; r.co2 = co2(r); return r;
+                    refreshHub(r);
+                    r.key = 'flight:' + r.title; return r;
                 });
+            }
+            // Rebuild totals & description from the segments (after real road distances arrive)
+            function refreshHub(r) {
+                const { A, B, oA, D, o } = r.hub, cars = r.segs.filter(sg => sg.xfer);
+                const first = cars.find(sg => sg.from === A.name), last = cars.find(sg => sg !== first);
+                const xferWord = sg => sg.km < 80 ? 'taxi / Uber' : 'drive';
+                r.km = r.segs.reduce((t, sg) => t + sg.km, 0);
+                r.h = o.h + 2.5 + cars.reduce((t, sg) => t + sg.h, 0);
+                r.pts = r.segs.flatMap(sg => sg.pts);
+                r.detail = `${first ? `${A.name} → ${oA.iata} (${xferWord(first)}, ${Math.round(first.km)} km, ~${fmtH(first.h)}) · ` : ''}${o.path.map(p => `${p.iata} (${p.city})`).join(' → ')} · ~${fmtH(o.h)} flying incl. layovers + ~2h30 check-in${last ? ` · ${D.iata} → ${B.short || B.name} (${xferWord(last)}, ${Math.round(last.km)} km, ~${fmtH(last.h)})` : ''}`;
+                r.co2 = co2(r);
+            }
+            // Swap straight-line airport transfers for the real road route (OSRM) — distance, time & shape
+            const ROAD_CACHE = new Map();
+            async function roadRoute(a, b) {
+                const k = `${a[0].toFixed(3)},${a[1].toFixed(3)}>${b[0].toFixed(3)},${b[1].toFixed(3)}`;
+                if (ROAD_CACHE.has(k)) return ROAD_CACHE.get(k);
+                let out = null;
+                try {
+                    const j = await fetchJson(`https://router.project-osrm.org/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=simplified&geometries=geojson`, 7000);
+                    if (j.routes && j.routes[0]) out = { pts: j.routes[0].geometry.coordinates.map(c => [c[1], c[0]]), km: j.routes[0].distance / 1000, h: j.routes[0].duration / 3600 };
+                } catch (e) { }
+                ROAD_CACHE.set(k, out); return out;
+            }
+            async function enrichTransfers(opts) {
+                const jobs = [];
+                opts.forEach(r => (r.segs || []).forEach(sg => {
+                    if (sg.mode !== 'car' || sg.road) return;
+                    jobs.push(roadRoute(sg.pts[0], sg.pts[sg.pts.length - 1]).then(rd => {
+                        if (!rd) return;
+                        sg.pts = rd.pts; sg.km = rd.km; sg.h = rd.h + Math.floor(rd.h / 4) * 0.5; sg.road = true;
+                    }));
+                }));
+                await Promise.all(jobs);
+                opts.forEach(r => { if (r.hub) refreshHub(r); else if (r.segs) { r.pts = r.segs.flatMap(sg => sg.pts); r.km = r.segs.reduce((t, sg) => t + sg.km, 0); } });
+            }
+            // Hover text for one segment of an option
+            const SPEED = { car: 75, bus: 65, train: 110 };
+            function segTip(r, sg, single) {
+                const m = MODE[sg.mode];
+                const h = sg.h != null ? sg.h : single ? r.h : sg.mode === 'flight' ? legHours(sg.km) : sg.km / SPEED[sg.mode];
+                const what = sg.mode === 'car' ? (sg.km < 80 ? 'Taxi / Uber / Bolt' : sg.xfer ? 'Drive / transfer' : 'Drive') : sg.mode === 'bus' ? 'Coach' : sg.mode === 'train' ? 'Train' : 'Flight';
+                const ends = sg.from && sg.to ? `${escapeHtml(sg.from)} → ${escapeHtml(sg.to)}` : single ? `${escapeHtml(ttState.A.name)} → ${escapeHtml(ttState.B.name)}` : '';
+                const via = sg.via && sg.via.length ? ` · via ${sg.via.join(', ')}` : '';
+                const note = sg.mode === 'car' ? (sg.road || (single && r.detail && /road route/i.test(r.detail)) ? 'road route' : 'estimate') : sg.mode === 'flight' ? 'in the air incl. layovers' : '';
+                return `<div style="min-width:180px"><div style="font-weight:700;color:${m.color}">${what}${via}</div>${ends ? `<div style="color:#cbd5e1;margin-top:2px">${ends}</div>` : ''}<div style="margin-top:4px"><b>${fmtKm(sg.km)}</b> · <b>~${fmtH(h)}</b>${note ? ` <span style="color:#94a3b8">(${note})</span>` : ''}</div></div>`;
             }
             async function travelOptions(A, B) {
                 const direct = haversine([A.lat, A.lng], [B.lat, B.lng]);
@@ -5640,6 +5684,7 @@ Caribbean|JM|18.00|-72.00|5`;
                 let ground = [];
                 try { ground = await computeRouteOptions(A, B); } catch (e) { console.warn(e); }
                 if (hub.length) ground = ground.filter(r => !(r.mode === 'flight' && !hasTrain(r)));
+                await enrichTransfers([...ground, ...hub]);
                 const all = [...ground, ...hub].sort((p, q) => p.h - q.h);
                 const seen = new Set(); return all.filter(r => { if (seen.has(r.key)) return false; seen.add(r.key); return true; }).slice(0, 7);
             }
@@ -5768,17 +5813,21 @@ Caribbean|JM|18.00|-72.00|5`;
                 removeMovers(mv => mv.tag === 'tt');
                 s.opts.forEach((r, i) => {
                     if (i === s.sel) return;
-                    (r.segs || [{ mode: r.mode, pts: r.pts }]).forEach(sg => {
-                        const ln = L.polyline(sg.pts, { color: MODE[sg.mode].color, weight: 1.6, opacity: 0.28, dashArray: sg.mode === 'flight' ? '5 7' : null });
-                        ln.on('click', () => { s.sel = i; draw(); renderPanel(); }); ttLayer.addLayer(ln);
+                    (r.segs || [{ mode: r.mode, pts: r.pts, km: r.km, h: r.h }]).forEach(sg => {
+                        ttLayer.addLayer(L.polyline(sg.pts, { color: MODE[sg.mode].color, weight: 1.6, opacity: 0.28, dashArray: sg.mode === 'flight' ? '5 7' : null, interactive: false }));
+                        const hit = L.polyline(sg.pts, { color: '#000', weight: 16, opacity: 0, interactive: true }).bindTooltip(`<div style="font-size:10px;color:#94a3b8;margin-bottom:3px">${escapeHtml(r.title)} · click to show</div>` + segTip(r, sg, !r.segs), { sticky: true, className: 'country-tip', direction: 'top', offset: [0, -8] });
+                        hit.on('click', () => { s.sel = i; draw(); renderPanel(); }); ttLayer.addLayer(hit);
                     });
                 });
                 const r = s.opts[s.sel]; if (!r) return;
-                const segs = r.segs || [{ mode: r.mode, pts: r.pts }];
+                const segs = r.segs || [{ mode: r.mode, pts: r.pts, km: r.km, h: r.h }];
                 segs.forEach((sg, k) => {
                     const c = MODE[sg.mode].color;
                     ttLayer.addLayer(L.polyline(sg.pts, { color: c, weight: 9, opacity: 0.13, interactive: false }));
                     ttLayer.addLayer(L.polyline(sg.pts, { color: c, weight: sg.mode === 'flight' ? 2.8 : 3.4, opacity: 0.95, dashArray: sg.mode === 'flight' ? '7 8' : sg.mode === 'bus' ? '2 7' : null, className: sg.mode === 'flight' ? 'route-anim' : '', lineCap: 'round', interactive: false }));
+                    const hit = L.polyline(sg.pts, { color: '#000', weight: 20, opacity: 0, interactive: true }).bindTooltip(segTip(r, sg, !r.segs), { sticky: true, className: 'country-tip', direction: 'top', offset: [0, -8] });
+                    hit.on('mouseover', () => hit.setStyle({ opacity: 0.12, color: c })); hit.on('mouseout', () => hit.setStyle({ opacity: 0 }));
+                    ttLayer.addLayer(hit);
                     const mv = makeMover(map, sg.pts, sg.mode, Math.max(4000, Math.min(11000, pathLengthKm(sg.pts) / 1.2)), { group: ttLayer, delay: k * 400 }); mv.tag = 'tt';
                 });
                 const lab = (ll, txt, dir, color) => ttLayer.addLayer(L.tooltip({ permanent: true, direction: dir, className: 'route-label', offset: [dir === 'right' ? 12 : dir === 'left' ? -12 : 0, 0], interactive: false }).setLatLng(ll).setContent(`<span style="--c:${color}">${txt}</span>`));
