@@ -547,6 +547,7 @@
                                     <p id="selected-country-name" class="font-display text-xl font-bold metal-text truncate">None</p>
                                     <p id="selected-country-meta" class="text-xs text-gray-400 mt-0.5"></p>
                                 </div>
+                                <button id="btn-deselect" class="hidden metal metal-steel ml-auto flex-none h-8 px-3 rounded-full text-xs font-semibold flex items-center gap-1.5" title="Unselect this country (Esc)"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>Unselect</button>
                             </div>
                             <div id="selected-empty" class="empty-art mt-3">
                                 <svg viewBox="0 0 120 120" aria-hidden="true" class="floaty">
@@ -1513,7 +1514,7 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
                         const name = feature.properties.name; countryLayers[name] = layer;
                         layer.bindTooltip(() => tooltipHtml(name), { sticky: true, direction: 'top', className: 'country-tip', offset: [0, -8] });
                         layer.on({
-                            click: e => handleCountryClick(e.target),
+                            click: e => { if (e.target === selectedCountryLayer) deselectCountry(); else handleCountryClick(e.target); },
                             mouseover: e => { if (e.target !== selectedCountryLayer) e.target.setStyle({ weight: 1.6, color: '#e2e8f0', opacity: 1, fillOpacity: Math.min(0.9, (getCountryStyle(feature).fillOpacity || 0.3) + 0.15) }); },
                             mouseout: e => { if (e.target !== selectedCountryLayer) geoJsonLayer.resetStyle(e.target); }
                         });
@@ -1541,10 +1542,33 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
             const cat = countryCategories[countryName];
             document.getElementById('selected-country-meta').innerHTML = [info.region, info.currency, cat ? `<span style="color:${CATEGORY_COLORS[cat]}">● ${CATEGORY_LABELS[cat]}</span>` : ''].filter(Boolean).join(' · ');
             document.getElementById('selected-empty').classList.add('hidden');
+            document.getElementById('btn-deselect').classList.remove('hidden');
             document.querySelectorAll('#map-page button[data-category]').forEach(b => b.disabled = false); document.getElementById('btn-clear').disabled = false;
             displayCountryDetails(countryName);
             if (window.onCountrySelected) onCountrySelected(countryName, opts);
         }
+        // Unselect: click the selected country again, press Esc, or use the Unselect button
+        function deselectCountry() {
+            if (!selectedCountryLayer) return;
+            const layer = selectedCountryLayer; selectedCountryLayer = null;
+            if (layer._path) layer._path.classList.remove('country-selected');
+            geoJsonLayer.resetStyle(layer);
+            document.getElementById('selected-country-name').textContent = 'None';
+            document.getElementById('selected-country-flag').classList.add('hidden');
+            document.getElementById('selected-country-meta').innerHTML = '';
+            document.getElementById('selected-empty').classList.remove('hidden');
+            document.getElementById('btn-deselect').classList.add('hidden');
+            document.getElementById('country-details-section').classList.add('hidden');
+            document.querySelectorAll('#map-page button[data-category]').forEach(b => b.disabled = true); document.getElementById('btn-clear').disabled = true;
+            if (window.onCountryDeselected) onCountryDeselected();
+        }
+        window.deselectCountry = deselectCountry;
+        document.addEventListener('click', e => { if (e.target.closest('#btn-deselect')) deselectCountry(); });
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape' || !selectedCountryLayer || /INPUT|TEXTAREA|SELECT/.test((e.target.tagName || '')) || document.querySelector('.modal:not(.hidden), .ctx-menu:not(.hidden)')) return;
+            if (document.getElementById('map-page').classList.contains('hidden')) return;
+            deselectCountry();
+        });
         async function displayCountryDetails(countryName) {
             const info = getCountryInfo(countryName);
             const detailsSection = document.getElementById('country-details-section');
@@ -3468,6 +3492,13 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
             renderClimate(name);
             renderSaRoutesPanel(name);
             drawSaRoutes(name);
+        };
+
+        window.onCountryDeselected = () => {
+            lastCountry = null;
+            ['climate-block', 'sa-routes-block'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+            if (saRouteLayer) saRouteLayer.clearLayers(); removeMovers(mv => mv.tag === 'sa');
+            if (airportsOn && networkLayer && !map.hasLayer(networkLayer)) networkLayer.addTo(map);
         };
 
         // =====================================================================
