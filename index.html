@@ -5590,6 +5590,17 @@ Caribbean|JM|18.00|-72.00|5`;
                 const apt = nearest(AIRPORTS, [lat, lng], 25);
                 if (apt && apt.km < Math.min(km, 6)) return { name: `${apt.city} airport (${apt.iata})`, short: apt.iata, lat: apt.lat, lng: apt.lng, iata: apt.iata, country: apt.country, exact: true };
                 if (town) town = { ...town, n: town.n.replace(/^(.+?) \d{1,2}(?: .*)?$/, '$1') };
+                // Prefer the big city a click falls in (Porto, not the suburb São Mamede de Infesta)
+                let city = null;
+                try { if (typeof loadTowns === 'function') await Promise.race([loadTowns(true), new Promise(r => setTimeout(r, 4000))]); } catch (e) { }
+                if (typeof TOWNS !== 'undefined' && TOWNS) {
+                    let bd = Infinity;
+                    TOWNS.forEach(t => { if (t.pop < 150000) return; const d = haversine([lat, lng], [t.lat, t.lng]); const lim = t.pop >= 1e6 ? 20 : t.pop >= 4e5 ? 13 : 8; if (d <= lim && d < bd) { bd = d; city = t; } });
+                }
+                if (city && !(apt && apt.km < 6)) {
+                    const sub = town && km <= 4 && town.n.toLowerCase() !== city.n.toLowerCase() ? town.n : '';
+                    return { name: city.n, short: city.n, lat, lng, country: country || city.c, exact: true, near: sub ? `${sub} area` : '' };
+                }
                 if (town && km <= 4) return { name: town.n, short: town.n, lat: town.lat, lng: town.lng, country: country || town.c, exact: true };
                 const near = town && km < 60 ? `near ${town.n}` : '';
                 return { name: near ? `Pin ${near}` : `Pin ${lat.toFixed(3)}, ${lng.toFixed(3)}`, short: town && km < 60 ? town.n : 'Pin', lat, lng, country: country || (town ? town.c : ''), exact: false, near: town && km < 60 ? `${Math.round(km)} km from ${town.n}` : '' };
@@ -5685,7 +5696,10 @@ Caribbean|JM|18.00|-72.00|5`;
                 try { ground = await computeRouteOptions(A, B); } catch (e) { console.warn(e); }
                 if (hub.length) ground = ground.filter(r => !(r.mode === 'flight' && !hasTrain(r)));
                 await enrichTransfers([...ground, ...hub]);
-                const all = [...ground, ...hub].sort((p, q) => p.h - q.h);
+                let all = [...ground, ...hub].sort((p, q) => p.h - q.h);
+                // Drop combos that are far slower than simply flying (e.g. fly to Paris + 18 h of trains to Porto)
+                const fastestFlight = all.find(r => r.mode === 'flight' && !hasTrain(r));
+                if (fastestFlight) all = all.filter(r => !hasTrain(r) || r.h <= fastestFlight.h * 1.35);
                 const seen = new Set(); return all.filter(r => { if (seen.has(r.key)) return false; seen.add(r.key); return true; }).slice(0, 7);
             }
 
