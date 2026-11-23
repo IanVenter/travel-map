@@ -3000,7 +3000,70 @@ USH|Ushuaia|Argentina|-54.843|-68.296|0
 SCL|Santiago|Chile|-33.393|-70.786|1
 MVD|Montevideo|Uruguay|-34.838|-56.031|0
 MPN|Mount Pleasant|Falkland Islands|-51.823|-58.447|0
-GOH|Nuuk|Greenland|64.191|-51.678|0`;
+GOH|Nuuk|Greenland|64.191|-51.678|0
+VLC|Valencia|Spain|39.489|-0.482|0
+ALC|Alicante|Spain|38.282|-0.558|0
+SVQ|Seville|Spain|37.418|-5.893|0
+BIO|Bilbao|Spain|43.301|-2.911|0
+SCQ|Santiago de Compostela|Spain|42.896|-8.415|0
+GRX|Granada|Spain|37.189|-3.777|0
+PMI|Palma de Mallorca|Spain|39.552|2.739|0
+IBZ|Ibiza|Spain|38.873|1.373|0
+TFS|Tenerife|Spain|28.044|-16.573|0
+LPA|Gran Canaria|Spain|27.932|-15.387|0
+FAO|Faro|Portugal|37.014|-7.966|0
+FNC|Funchal (Madeira)|Portugal|32.698|-16.775|0
+MRS|Marseille|France|43.436|5.215|0
+TLS|Toulouse|France|43.629|1.364|0
+BOD|Bordeaux|France|44.828|-0.716|0
+NTE|Nantes|France|47.153|-1.611|0
+BSL|Basel-Mulhouse|France|47.590|7.529|0
+BLQ|Bologna|Italy|44.535|11.289|0
+FLR|Florence|Italy|43.810|11.205|0
+PSA|Pisa|Italy|43.684|10.393|0
+TRN|Turin|Italy|45.201|7.650|0
+VRN|Verona|Italy|45.396|10.889|0
+BRI|Bari|Italy|41.139|16.761|0
+CTA|Catania|Italy|37.467|15.066|0
+PMO|Palermo|Italy|38.176|13.091|0
+CAG|Cagliari|Italy|39.251|9.054|0
+OLB|Olbia|Italy|40.899|9.518|0
+STR|Stuttgart|Germany|48.690|9.222|0
+CGN|Cologne/Bonn|Germany|50.866|7.143|0
+HAJ|Hannover|Germany|52.461|9.685|0
+NUE|Nuremberg|Germany|49.499|11.078|0
+LEJ|Leipzig|Germany|51.432|12.242|0
+DRS|Dresden|Germany|51.133|13.767|0
+BRE|Bremen|Germany|53.047|8.787|0
+BHX|Birmingham|United Kingdom|52.454|-1.748|0
+GLA|Glasgow|United Kingdom|55.872|-4.433|0
+BRS|Bristol|United Kingdom|51.383|-2.719|0
+NCL|Newcastle|United Kingdom|55.037|-1.692|0
+BFS|Belfast|United Kingdom|54.658|-6.216|0
+SNN|Shannon|Ireland|52.702|-8.925|0
+ORK|Cork|Ireland|51.841|-8.491|0
+SKG|Thessaloniki|Greece|40.520|22.971|0
+HER|Heraklion (Crete)|Greece|35.340|25.180|0
+CHQ|Chania (Crete)|Greece|35.532|24.150|0
+RHO|Rhodes|Greece|36.405|28.086|0
+CFU|Corfu|Greece|39.602|19.912|0
+JMK|Mykonos|Greece|37.435|25.348|0
+PUY|Pula|Croatia|44.894|13.922|0
+ZAD|Zadar|Croatia|44.108|15.347|0
+ESB|Ankara|Turkey|40.128|32.995|0
+ADB|Izmir|Turkey|38.292|27.157|0
+DLM|Dalaman|Turkey|36.713|28.792|0
+BJV|Bodrum|Turkey|37.251|27.664|0
+SZG|Salzburg|Austria|47.793|13.004|0
+INN|Innsbruck|Austria|47.260|11.344|0
+EIN|Eindhoven|Netherlands|51.450|5.375|0
+BGO|Bergen|Norway|60.294|5.218|0
+TOS|Tromsø|Norway|69.683|18.919|0
+GOT|Gothenburg|Sweden|57.663|12.280|0
+RVN|Rovaniemi|Finland|66.565|25.830|0
+KRK|Kraków|Poland|50.078|19.785|0
+GDN|Gdańsk|Poland|54.378|18.466|0
+PFO|Paphos|Cyprus|34.718|32.486|0`;
         const AIRPORTS = AIRPORTS_RAW.split('\n').map(l => { const [iata, city, country, lat, lng, hub] = l.split('|'); return { iata, city, country, lat: +lat, lng: +lng, hub: hub === '1' }; });
         const APT = Object.fromEntries(AIRPORTS.map(a => [a.iata, a]));
         // Typical non-stop routes from South Africa (scheduled carriers, 2025–26)
@@ -3254,7 +3317,9 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
             // Long-haul connections only through genuine global hubs; regional hubs (NBO, CAI…) only for their own region
             const GLOBAL_HUBS = ['DXB', 'DOH', 'AUH', 'IST', 'ADD', 'SIN', 'HKG', 'LHR', 'AMS', 'FRA', 'CDG', 'ZRH', 'MUC', 'MAD', 'FCO', 'ATL', 'JFK', 'GRU', 'PER', 'SYD'];
             const regionOf = c => getCountryInfo(c).region;
-            const okHub = h => GLOBAL_HUBS.includes(h.iata) || regionOf(h.country) === regionOf(name);
+            const mainOfCountry = (countryAirports(name)[0] || {}).iata;
+            const secondary = !D.hub && mainOfCountry && mainOfCountry !== D.iata;   // e.g. VLC: reached via European hubs, not Addis or Dubai
+            const okHub = h => secondary ? regionOf(h.country) === regionOf(name) : GLOBAL_HUBS.includes(h.iata) || regionOf(h.country) === regionOf(name);
             const hubsFrom = o => AIRPORTS.filter(h => h.hub && h.iata !== o && h.iata !== D.iata && directFrom(o).includes(h.iata) && h.country !== 'South Africa' && h.country !== name && okHub(h));
             const add = (path, type) => { const r = legsTo(path); if (r.km < haversine(P(O), P(D)) * 1.6 + 600) options.push({ path, type, ...r }); };
             // Non-stop
@@ -5622,8 +5687,22 @@ Caribbean|JM|18.00|-72.00|5`;
                 let oA = A.iata && SA_AIRPORTS.includes(A.iata) ? APT[A.iata] : null;
                 if (!oA) { const n = nearest(SA_AIRPORTS.map(c => APT[c]).filter(Boolean), [A.lat, A.lng], 600); if (n) oA = APT[n.iata]; }
                 if (!oA || !window.computeFlightsTo) return [];
-                const D = B.iata ? APT[B.iata] : nearest(AIRPORTS, [B.lat, B.lng], 3000);
-                if (!D || D.iata === oA.iata) return [];
+                // Compare the nearest few airports — a closer regional airport (VLC) usually beats a hub 300 km away (MAD)
+                let cands;
+                if (B.iata && APT[B.iata]) cands = [APT[B.iata]];
+                else {
+                    const near = AIRPORTS.map(x => ({ x, d: haversine([B.lat, B.lng], [x.lat, x.lng]) })).sort((p, q) => p.d - q.d);
+                    if (!near.length) return [];
+                    cands = near.filter(n => n.d <= Math.max(150, near[0].d * 1.6 + 60)).slice(0, 3).map(n => n.x);
+                }
+                const all = cands.flatMap(D => D.iata === oA.iata ? [] : flightsVia(A, B, oA, D));
+                all.forEach(r => { if (cands.length > 1 && !r.title.includes('→')) r.title += ` → ${r.hub.D.iata}`; r.key = 'flight:' + r.title; });
+                // Keep the list readable: up to 3 routings into the best airport, 1 into each alternative
+                all.sort((p, q) => p.h - q.h);
+                const per = {}, bestD = all[0] && all[0].hub.D.iata;
+                return all.filter(r => { const d = r.hub.D.iata; per[d] = (per[d] || 0) + 1; return per[d] <= (d === bestD ? 3 : 1); }).slice(0, 5);
+            }
+            function flightsVia(A, B, oA, D) {
                 const dCountry = B.country || D.country;
                 const kmA = haversine([A.lat, A.lng], [oA.lat, oA.lng]), kmB = haversine([D.lat, D.lng], [B.lat, B.lng]);
                 return computeFlightsTo(oA.iata, APT[D.iata] || D, dCountry).map(o => {
