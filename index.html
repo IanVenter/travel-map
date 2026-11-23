@@ -729,6 +729,7 @@
                         <div class="eyebrow">Itinerary</div>
                         <h1 class="page-header">Trip Planner</h1>
                         <p class="hero-sub">Dates, leave balance, SA public holidays, stops, budget and the to-do list — all in one place.</p>
+                        <button id="planner-pdf" class="gradient-btn px-4 py-2 rounded-xl text-sm mt-3">⬇ Download full planner PDF</button>
                     </div>
                     <div class="hero-art">
                         <svg viewBox="0 0 260 120" aria-hidden="true">
@@ -819,7 +820,7 @@
                                     <button id="trip-add" class="gradient-btn px-4 py-2 rounded-xl text-sm">+ Add stop</button>
                                     <button id="trip-optimise" class="gradient-btn secondary px-4 py-2 rounded-xl text-sm" title="Re-order stops to minimise travel">⇄ Optimise order</button>
                                     <button id="trip-recalc" class="gradient-btn secondary px-4 py-2 rounded-xl text-sm">↻ Recalculate routes</button>
-                                    <button id="trip-print" class="gradient-btn secondary px-4 py-2 rounded-xl text-sm">⎙ Print program</button>
+                                    <button id="trip-print" class="gradient-btn secondary px-4 py-2 rounded-xl text-sm">⬇ Trip program PDF</button>
                                     <button id="trip-copy" class="gradient-btn secondary px-4 py-2 rounded-xl text-sm">⧉ Copy as text</button>
                                     <label class="switch ml-2"><span>Return home at the end</span><input type="checkbox" id="trip-return" checked><span class="track"></span></label>
                                     <button id="trip-clear" class="ml-auto text-xs text-red-400 hover:underline">Clear trip</button>
@@ -841,10 +842,6 @@ Fly to Bali for a week, then back home."></textarea>
                                         </div>
                                         <div id="trip-parse-result"></div>
                                     </div>
-                                </details>
-                                <details id="trip-quick-details" class="content-card">
-                                    <summary class="p-3.5 list-none flex items-center gap-2.5 cursor-pointer"><svg class="chev w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg><span class="font-display font-semibold text-purple-300">Quick add</span><span id="trip-quick-count" class="count-pill">0</span><span class="text-xs text-gray-400">— from your Sites to Visit &amp; wish lists</span></summary>
-                                    <div class="px-4 pb-4"><div id="trip-quick" class="flex flex-wrap gap-2 items-center"></div></div>
                                 </details>
                                 <div id="trip-status" class="hidden text-sm" style="color:#d9b46a"></div>
                                 <div id="trip-summary" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3"></div>
@@ -926,6 +923,7 @@ Fly to Bali for a week, then back home."></textarea>
                         <div class="eyebrow">Ready to go</div>
                         <h1 class="page-header">Packing List</h1>
                         <p class="hero-sub">Tick things off as they go into the bag. Flag the must-not-forget items.</p>
+                        <button id="packing-pdf" class="gradient-btn px-4 py-2 rounded-xl text-sm mt-3">⬇ Download packing list PDF</button>
                     </div>
                     <div class="hero-art floaty">
                         <svg viewBox="0 0 260 120" aria-hidden="true">
@@ -3183,35 +3181,49 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
         function computeSaRoutes(name) {
             const O = APT[routeOrigin], dests = countryAirports(name);
             const pt = countryPoint(name); if (!pt || name === 'South Africa') return [];
+            // Always route to the country's MAIN international airport (first listed for the country)
             const D = dests[0] || { iata: '—', city: pt.label, lat: pt.lat, lng: pt.lng, country: name, approx: true };
             const P = a => [a.lat, a.lng];
             const options = [];
             const legsTo = (path) => { let km = 0, h = 0; for (let i = 1; i < path.length; i++) { const d = haversine(P(path[i - 1]), P(path[i])); km += d; h += legHours(d); } h += (path.length - 2) * 2.5; return { km, h }; };
             const directFrom = o => SA_DIRECT[o] || [];
+            // Long-haul connections only through genuine global hubs; regional hubs (NBO, CAI…) only for their own region
+            const GLOBAL_HUBS = ['DXB', 'DOH', 'AUH', 'IST', 'ADD', 'SIN', 'HKG', 'LHR', 'AMS', 'FRA', 'CDG', 'ZRH', 'MUC', 'MAD', 'FCO', 'ATL', 'JFK', 'GRU', 'PER', 'SYD'];
+            const regionOf = c => getCountryInfo(c).region;
+            const okHub = h => GLOBAL_HUBS.includes(h.iata) || regionOf(h.country) === regionOf(name);
+            const hubsFrom = o => AIRPORTS.filter(h => h.hub && h.iata !== o && h.iata !== D.iata && directFrom(o).includes(h.iata) && h.country !== 'South Africa' && h.country !== name && okHub(h));
+            const add = (path, type) => { const r = legsTo(path); if (r.km < haversine(P(O), P(D)) * 1.6 + 600) options.push({ path, type, ...r }); };
             // Non-stop
-            dests.forEach(d => { if (directFrom(routeOrigin).includes(d.iata)) options.push({ path: [O, d], type: 'Non-stop', ...legsTo([O, d]) }); });
-            // One stop via hub (direct from origin)
-            const hubs = AIRPORTS.filter(h => h.hub && h.iata !== routeOrigin && directFrom(routeOrigin).includes(h.iata) && h.country !== 'South Africa');
-            hubs.forEach(h => { if (h.country === name) return; const r = legsTo([O, h, D]); options.push({ path: [O, h, D], type: `1 stop · via ${h.iata}`, ...r }); });
-            // Via JNB then hub (for CPT/DUR)
-            if (routeOrigin !== 'JNB') dests.forEach(d => { if (directFrom('JNB').includes(d.iata) && !directFrom(routeOrigin).includes(d.iata)) options.push({ path: [O, APT.JNB, d], type: '1 stop · via JNB', ...legsTo([O, APT.JNB, d]) }); });
-            // Domestic hop inside destination country from its gateway hub
-            if (!options.some(o => o.type === 'Non-stop')) {
-                const best = options.filter(o => o.path.length === 3).sort((a, b) => a.h - b.h)[0];
-                if (best && dests.length > 1) {/* keep */ }
+            if (directFrom(routeOrigin).includes(D.iata)) add([O, D], 'Non-stop');
+            // 1 stop: via a hub served non-stop from the origin (e.g. CPT → DOH → …)
+            hubsFrom(routeOrigin).forEach(h => add([O, h, D], `1 stop · via ${h.iata}`));
+            if (routeOrigin !== 'JNB') {
+                // 1 stop: domestic hop to OR Tambo, then non-stop from JNB
+                if (directFrom('JNB').includes(D.iata)) add([O, APT.JNB, D], '1 stop · via JNB');
+                // 2 stops: OR Tambo → hub that only JNB serves (SIN, HKG, GRU, PER, SYD, ATL…)
+                hubsFrom('JNB').filter(h => !directFrom(routeOrigin).includes(h.iata)).forEach(h => add([O, APT.JNB, h, D], `2 stops · via JNB & ${h.iata}`));
             }
             const seen = new Set();
-            return options.sort((a, b) => a.h - b.h).filter(o => { const k = o.type; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 3).map(o => ({ ...o, dest: D }));
+            return options.sort((a, b) => a.h - b.h).filter(o => { if (seen.has(o.type)) return false; seen.add(o.type); return true; }).slice(0, 4).map(o => ({ ...o, dest: D }));
         }
-        function drawSaRoutes(name) {
+        let saSelectedIdx = 0;
+        function drawSaRoutes(name, idx) {
             if (!saRouteLayer) return;
             saRouteLayer.clearLayers(); removeMovers(mv => mv.tag === 'sa');
             if (!airportsOn) return;
-            computeSaRoutes(name).forEach((o, idx) => {
-                const pts = []; for (let i = 1; i < o.path.length; i++) { const seg = gcPath([o.path[i - 1].lat, o.path[i - 1].lng], [o.path[i].lat, o.path[i].lng]); pts.push(...(i > 1 ? seg.slice(1) : seg)); }
-                const color = idx === 0 ? '#f7e3b5' : idx === 1 ? '#fbbf24' : '#94a3b8';
-                L.polyline(pts, { color, weight: idx === 0 ? 2.6 : 1.8, opacity: idx === 0 ? 0.95 : 0.7, className: 'route-anim', interactive: false }).addTo(saRouteLayer);
-                const mv = makeMover(map, pts, 'flight', 9000 + idx * 1500, { group: saRouteLayer, delay: idx * 900 }); mv.tag = 'sa';
+            // While a country is selected, hide the background network so only its route shows
+            if (networkLayer && map.hasLayer(networkLayer)) map.removeLayer(networkLayer);
+            const opts = computeSaRoutes(name); if (!opts.length) return;
+            saSelectedIdx = idx != null ? idx : 0;
+            const o = opts[Math.min(saSelectedIdx, opts.length - 1)];
+            const pts = []; for (let i = 1; i < o.path.length; i++) { const seg = gcPath([o.path[i - 1].lat, o.path[i - 1].lng], [o.path[i].lat, o.path[i].lng]); pts.push(...(i > 1 ? seg.slice(1) : seg)); }
+            L.polyline(pts, { color: '#f7e3b5', weight: 9, opacity: 0.12, interactive: false }).addTo(saRouteLayer);
+            L.polyline(pts, { color: '#f7e3b5', weight: 2.8, opacity: 0.95, className: 'route-anim', interactive: false }).addTo(saRouteLayer);
+            const mv = makeMover(map, pts, 'flight', 9000, { group: saRouteLayer }); mv.tag = 'sa';
+            o.path.forEach((a, i) => {
+                const role = i === 0 ? 'Depart' : i === o.path.length - 1 ? 'Arrive' : 'Connect';
+                L.tooltip({ permanent: true, direction: i === o.path.length - 1 ? 'right' : 'left', className: 'route-label', offset: [i === o.path.length - 1 ? 10 : -10, 0] })
+                    .setLatLng([a.lat, a.lng]).setContent(`<span>${role} · ${a.iata}${a.city ? ' ' + escapeHtml(a.city) : ''}</span>`).addTo(saRouteLayer);
             });
         }
         function renderSaRoutesPanel(name) {
@@ -3219,11 +3231,12 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
             const opts = computeSaRoutes(name);
             if (!opts.length) { el.innerHTML = ''; return; }
             el.innerHTML = `<div class="flex items-center justify-between mb-2"><span class="text-xs uppercase tracking-widest text-gray-400 font-semibold">Fly from ${routeOrigin}</span>${airportsOn ? '' : '<button id="show-routes-btn" class="text-[11px] text-purple-400 hover:underline font-semibold">Show on map</button>'}</div>
-                <div class="space-y-1.5">${opts.map((o, i) => `<div class="opt-row"><span class="mode-badge" style="--c:${i === 0 ? '#f7e3b5' : '#fbbf24'};width:30px;height:30px;border-radius:9px">${MODE.flight.icon}</span>
-                    <div class="flex-1 min-w-0"><div class="text-sm font-semibold">${o.type}</div><div class="text-[11px] text-gray-400 truncate">${o.path.map(p => p.iata).join(' → ')}${o.dest.approx ? ' (nearest airport not listed)' : ''} · ${fmtKm(o.km)}</div></div>
+                <div class="space-y-1.5">${opts.map((o, i) => `<div class="opt-row sa-opt cursor-pointer" data-i="${i}" style="${i === saSelectedIdx && airportsOn ? 'border-color:rgba(247,227,181,.6)' : ''}" title="Show this routing on the map"><span class="mode-badge" style="--c:${i === 0 ? '#f7e3b5' : '#fbbf24'};width:30px;height:30px;border-radius:9px">${MODE.flight.icon}</span>
+                    <div class="flex-1 min-w-0"><div class="text-sm font-semibold">${i === 0 ? '★ ' : ''}${o.type}</div><div class="text-[11px] text-gray-400 truncate">${o.path.map(p => p.iata).join(' → ')}${o.dest.approx ? ' (nearest airport not listed)' : ''} · ${fmtKm(o.km)}</div></div>
                     <div class="text-sm font-bold gold-text whitespace-nowrap">~${fmtH(o.h)}</div></div>`).join('')}</div>
                 <a class="text-[11px] text-purple-400 hover:underline font-semibold mt-2 inline-block" target="_blank" rel="noopener" href="https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${routeOrigin} to ${opts[0].dest.iata !== '—' ? opts[0].dest.iata : displayName(name)}`)}">Search fares on Google Flights ↗</a>
-                <div class="text-[10px] text-gray-500 mt-1">Typical connections and estimated times incl. layovers — not live schedules.</div>`;
+                <div class="text-[10px] text-gray-500 mt-1">To ${opts[0].dest.iata !== '—' ? `${opts[0].dest.iata} ${escapeHtml(opts[0].dest.city)}` : 'the main airport'} (main international airport). Click a row to show it on the map. Typical connections &amp; estimated times incl. layovers — not live schedules.</div>`;
+            el.querySelectorAll('.sa-opt').forEach(r => r.onclick = () => { if (!airportsOn) { document.getElementById('toggle-airports').checked = true; setAirportsOn(true); } drawSaRoutes(name, +r.dataset.i); renderSaRoutesPanel(name); });
             const b = document.getElementById('show-routes-btn'); if (b) b.onclick = () => { document.getElementById('toggle-airports').checked = true; setAirportsOn(true); renderSaRoutesPanel(name); };
         }
 
@@ -3523,13 +3536,21 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
                     const likelyDirect = fkm < 3200 || (fa.hub && fb.hub) || (SA_DIRECT[fa.iata] || []).includes(fb.iata) || (SA_DIRECT[fb.iata] || []).includes(fa.iata);
                     let path = [fa, fb], title = `Flight ${fa.iata} → ${fb.iata}`, extra = 0;
                     if (!likelyDirect) {
-                        const hub = AIRPORTS.filter(x => x.hub && x.iata !== fa.iata && x.iata !== fb.iata).map(x => ({ x, d: haversine([fa.lat, fa.lng], [x.lat, x.lng]) + haversine([x.lat, x.lng], [fb.lat, fb.lng]) })).sort((p, q) => p.d - q.d)[0].x;
+                        const served = SA_DIRECT[fa.iata] || SA_DIRECT[fb.iata];
+                        const hub = AIRPORTS.filter(x => x.hub && x.iata !== fa.iata && x.iata !== fb.iata && (!served || served.includes(x.iata))).map(x => ({ x, d: haversine([fa.lat, fa.lng], [x.lat, x.lng]) + haversine([x.lat, x.lng], [fb.lat, fb.lng]) })).sort((p, q) => p.d - q.d)[0].x;
                         path = [fa, hub, fb]; title = `Flight via ${hub.iata}`; extra = 2.5;
                     }
                     const pts = []; for (let i = 1; i < path.length; i++) { const s = flightArc([path[i - 1].lat, path[i - 1].lng], [path[i].lat, path[i].lng]); pts.push(...(i > 1 ? s.slice(1) : s)); }
                     let air = 0; for (let i = 1; i < path.length; i++) air += legHours(haversine([path[i - 1].lat, path[i - 1].lng], [path[i].lat, path[i].lng]));
-                    const access = ((fa.km || 0) + (fb.km || 0)) / 50;
-                    results.push({ mode: 'flight', pts, h: air + extra + 2.5 + access, air, km: pathLengthKm(pts), title, airports: [fa.iata, fb.iata], via: path.slice(1, -1).map(p => p.iata), detail: `${path.map(p => `${p.iata} (${p.city})`).join(' → ')} · ~${fmtH(air)} in the air + ~2h30 check-in/security`, book: `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${fa.iata} to ${fb.iata}`)}` });
+                    const kmA = haversine(a, [fa.lat, fa.lng]), kmB = haversine([fb.lat, fb.lng], b);
+                    const access = (kmA + kmB) / 50;
+                    const segs = [];
+                    if (kmA > 3) segs.push({ mode: 'car', pts: [a, [fa.lat, fa.lng]], km: kmA * 1.25 });
+                    segs.push({ mode: 'flight', pts, km: pathLengthKm(pts) });
+                    if (kmB > 3) segs.push({ mode: 'car', pts: [[fb.lat, fb.lng], b], km: kmB * 1.25 });
+                    const xfer = kmB > 3 ? ` + transfer to ${B.name.split(',')[0]} (~${Math.round(kmB * 1.25)} km)` : '';
+                    results.push({ mode: 'flight', pts: segs.flatMap(sg => sg.pts), segs: segs.length > 1 ? segs : undefined, h: air + extra + 2.5 + access, air, km: segs.reduce((t, sg) => t + sg.km, 0), title: title + (kmB > 3 ? ' + transfer' : ''), airports: [fa.iata, fb.iata], via: path.slice(1, -1).map(p => p.iata),
+                        detail: `${kmA > 3 ? `Transfer to ${fa.iata} (~${Math.round(kmA * 1.25)} km) · ` : ''}${path.map(p => `${p.iata} (${p.city})`).join(' → ')} · ~${fmtH(air)} in the air + ~2h30 check-in/security${xfer}`, book: `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${fa.iata} to ${fb.iata}`)}` });
                 }
             }
             // Flight + train: long-haul into a rail network (e.g. Cape Town → Frankfurt → Beckum)
@@ -3568,8 +3589,9 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
                 if (road) {
                     const gmaps = `https://www.google.com/maps/dir/?api=1&origin=${A.lat},${A.lng}&destination=${B.lat},${B.lng}&travelmode=driving`;
                     const breaks = Math.floor(road.h / 4) * 0.5;
-                    results.push({ mode: 'car', pts: road.pts, h: road.h + breaks, km: road.km, title: 'Drive / rental car', detail: `${road.live ? 'Fastest road route' : 'Approximate straight-line estimate'}${breaks ? ` · incl. ${fmtH(breaks)} of breaks` : ''}`, book: gmaps });
-                    if (road.km < 1800) results.push({ mode: 'bus', pts: road.pts, h: road.h * 1.15 + 0.75, km: road.km, title: 'Long-distance coach', detail: 'FlixBus / BlaBlaCar Bus style service along the motorway route', book: 'https://global.flixbus.com/' });
+                    const local = road.km < 80;
+                    results.push({ mode: 'car', pts: road.pts, h: road.h + breaks, km: road.km, title: local ? 'Taxi / Uber / Bolt transfer' : 'Drive / rental car', detail: `${road.live ? 'Fastest road route' : 'Approximate straight-line estimate'}${breaks ? ` · incl. ${fmtH(breaks)} of breaks` : ''}`, book: gmaps });
+                    if (road.km >= 80 && road.km < 1800) results.push({ mode: 'bus', pts: road.pts, h: road.h * 1.15 + 0.75, km: road.km, title: 'Long-distance coach', detail: 'FlixBus / BlaBlaCar Bus style service along the motorway route', book: 'https://global.flixbus.com/' });
                 }
             }
             results.forEach(r => { r.key = r.mode + ':' + r.title; r.co2 = co2(r); });
@@ -3577,7 +3599,8 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
         }
         window.computeRouteOptions = computeRouteOptions;
         window.resolvePlace = resolvePlace;
-        function co2(r) { if (r.segs) return Math.round(r.segs.reduce((t, sg) => t + sg.km * (sg.mode === 'flight' ? 0.15 : 0.03), 0)); const f = { flight: r.km < 1500 ? 0.25 : 0.15, train: 0.03, bus: 0.03, car: 0.17 }[r.mode]; return Math.round(r.km * f); }
+        const hasTrain = r => !!(r.segs && r.segs.some(sg => sg.mode === 'train'));
+        function co2(r) { if (r.segs) return Math.round(r.segs.reduce((t, sg) => t + sg.km * (sg.mode === 'flight' ? 0.15 : sg.mode === 'car' ? 0.17 : 0.03), 0)); const f = { flight: r.km < 1500 ? 0.25 : 0.15, train: 0.03, bus: 0.03, car: 0.17 }[r.mode]; return Math.round(r.km * f); }
         function drawRoutes(A, B) {
             routeLayer.clearLayers(); removeMovers(mv => mv.map === routeMap);
             const all = [];
@@ -3593,9 +3616,9 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
                     if (r.segs) makeMover(routeMap, sg.pts, sg.mode, Math.max(5000, Math.min(12000, pathLengthKm(sg.pts) / 1.2)), { group: routeLayer, delay: i * 600 + k * 300 });
                 });
                 r.line.on('click', () => focusRoute(i));
-                const labelPts = r.segs ? r.segs[0].pts : offsetPts;
+                const labelPts = r.segs ? (r.segs.find(sg => sg.mode === 'flight') || r.segs[0]).pts : offsetPts;
                 const mid = labelPts[Math.floor(labelPts.length * (0.35 + (i % 3) * 0.15))];
-                const lbl = r.segs ? 'Flight + Train' : m.label;
+                const lbl = hasTrain(r) ? 'Flight + Train' : m.label;
                 r.label = L.tooltip({ permanent: true, direction: 'center', className: 'route-label', interactive: false }).setLatLng(mid).setContent(`<span style="--c:${m.color}">${lbl} · ${fmtH(r.h)}</span>`);
                 routeLayer.addLayer(r.label);
                 setTimeout(() => { const el = r.label.getElement(); if (el) el.style.setProperty('--c', m.color); }, 0);
@@ -3622,7 +3645,7 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
                 const m = MODE[r.mode];
                 return `<div class="content-card route-card" data-i="${i}" style="--c:${m.color}">
                     <div class="flex items-start gap-3">
-                        <span class="flex flex-col gap-1"><span class="mode-badge" style="--c:${m.color}">${m.icon}</span>${r.segs ? `<span class="mode-badge" style="--c:${MODE.train.color};width:38px;height:26px;border-radius:9px">${MODE.train.icon}</span>` : ''}</span>
+                        <span class="flex flex-col gap-1"><span class="mode-badge" style="--c:${m.color}">${m.icon}</span>${hasTrain(r) ? `<span class="mode-badge" style="--c:${MODE.train.color};width:38px;height:26px;border-radius:9px">${MODE.train.icon}</span>` : ''}</span>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap"><span class="font-display font-bold">${escapeHtml(r.title)}</span>${r === fastest ? '<span class="hz-chip" style="--c:#f7e3b5">Fastest</span>' : ''}${r === greenest ? '<span class="hz-chip" style="--c:#22c55e">Lowest CO₂</span>' : ''}</div>
                             <div class="text-[11px] text-gray-400 mt-1 leading-snug">${escapeHtml(r.detail)}</div>
@@ -3640,8 +3663,8 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
             box.querySelectorAll('.add-route-trip').forEach(btn => btn.addEventListener('click', () => { if (window.tripAddFromRoute) tripAddFromRoute(A, B, routeResults[+btn.dataset.i]); }));
             box.querySelectorAll('.add-route-itin').forEach(btn => btn.addEventListener('click', () => {
                 const r = routeResults[+btn.dataset.i];
-                const transport = r.segs ? 'Major Flight' : { flight: haversine(r.pts[0], r.pts[r.pts.length - 1]) > 1500 ? 'Major Flight' : 'Minor Flight', train: 'Train', car: 'Rental Car', bus: 'Taxi' }[r.mode];
-                plannerState.itinerary.push({ name: `${A.name} → ${B.name}`, description: `${r.segs ? 'Flight + Train' : MODE[r.mode].label}: ${r.title} · ${fmtH(r.h)} · ${fmtKm(r.km)}\n${r.detail}`, transport });
+                const transport = hasTrain(r) || (r.mode === 'flight' && r.km > 1500) ? 'Major Flight' : { flight: haversine(r.pts[0], r.pts[r.pts.length - 1]) > 1500 ? 'Major Flight' : 'Minor Flight', train: 'Train', car: 'Rental Car', bus: 'Taxi' }[r.mode];
+                plannerState.itinerary.push({ name: `${A.name} → ${B.name}`, description: `${hasTrain(r) ? 'Flight + Train' : MODE[r.mode].label}: ${r.title} · ${fmtH(r.h)} · ${fmtKm(r.km)}\n${r.detail}`, transport });
                 savePlannerState(); renderPlanner(); showMessage(`${MODE[r.mode].label} leg added to your itinerary`);
             }));
         }
@@ -4409,7 +4432,7 @@ Caribbean|JM|18.00|-72.00|5`;
                 const fastest = opts[0].h, ok = opts.filter(o => o.h <= fastest * 1.25 + 1);
                 return ok.sort((a, b) => a.co2 - b.co2)[0];
             }
-            const summary = o => o ? { key: o.key, mode: o.mode, title: o.title, h: o.h, km: o.km, detail: o.detail, co2: o.co2, airports: o.airports || [], via: o.via || [], combo: !!o.segs, book: o.book } : null;
+            const summary = o => o ? { key: o.key, mode: o.mode, title: o.title, h: o.h, km: o.km, detail: o.detail, co2: o.co2, airports: o.airports || [], via: o.via || [], combo: !!(o.segs && o.segs.some(sg => sg.mode === 'train')), book: o.book } : null;
             async function legOptions(a, b) {
                 const k = optKey(a, b); if (OPT.has(k)) return OPT.get(k);
                 const opts = await computeRouteOptions(a, b); OPT.set(k, opts); return opts;
@@ -4433,7 +4456,7 @@ Caribbean|JM|18.00|-72.00|5`;
                         st.classList.remove('hidden'); st.textContent = `Working out leg ${i + 1} of ${pairs.length}: ${p.from.name} → ${p.to.name}…`;
                         const opts = await legOptions(p.from, p.to);
                         p.leg.cache = summary(pickOption(opts, p.leg.choice, p.leg.prefMode));
-                        p.leg.optionsLite = opts.map(o => ({ key: o.key, title: o.title, h: o.h, mode: o.mode, combo: !!o.segs }));
+                        p.leg.optionsLite = opts.map(o => ({ key: o.key, title: o.title, h: o.h, mode: o.mode, combo: !!(o.segs && o.segs.some(sg => sg.mode === 'train')) }));
                     }
                 } catch (e) { console.error(e); showMessage('Some routes could not be calculated.', 'error'); }
                 finally { computing = false; st.classList.add('hidden'); save(); renderAll(); if (pendingCompute) { pendingCompute = false; computeAll(); } }
@@ -4449,7 +4472,7 @@ Caribbean|JM|18.00|-72.00|5`;
             function schedule() {
                 const t = T(), legs = [], stays = [];
                 let cursorDate = defaultStart(), prevName = t.homePlace ? t.homePlace.name : 'Home';
-                let lastEnd = atTime(cursorDate, '00:00');
+                let lastEnd = atTime(cursorDate, '00:00'), earliest = 0;
                 const pairs = legPairs(); let pi = 0;
                 t.stops.forEach((s, idx) => {
                     if (!s.place) return;
@@ -4458,7 +4481,7 @@ Caribbean|JM|18.00|-72.00|5`;
                     if (pair) {
                         const c = pair.leg.cache, h = c ? c.h : 6;
                         const longHaul = c && c.mode === 'flight' && h > 9;
-                        const dep = atTime(cursorDate, pair.leg.dep || (idx === 0 ? (longHaul ? '18:30' : '08:00') : (longHaul ? '18:30' : '10:30')));
+                        const dep = Math.max(atTime(cursorDate, pair.leg.dep || (idx === 0 ? (longHaul ? '18:30' : '08:00') : (longHaul ? '18:30' : '10:30'))), earliest);
                         arrive = dep + h * 3600000;
                         legs.push({ from: pair.from, to: pair.to, dep, arrive, leg: pair.leg, cache: c, stopIndex: idx });
                     } else arrive = atTime(cursorDate, '12:00');
@@ -4468,12 +4491,15 @@ Caribbean|JM|18.00|-72.00|5`;
                     const coDate = ymd(new Date(atTime(ciDay, '00:00') + nights * DAY));
                     const checkout = atTime(coDate, '10:00');
                     stays.push({ stop: s, idx, arrive, checkin, checkout, ciDay, coDate, nights });
-                    cursorDate = coDate; prevName = s.place.name; lastEnd = checkout;
+                    // 0 nights = transit/transfer point: continue ~1 h after arriving
+                    const leaveAt = nights ? checkout : arrive + 3600000;
+                    earliest = nights ? 0 : leaveAt;
+                    cursorDate = nights ? coDate : ymd(new Date(leaveAt)); prevName = s.place.name; lastEnd = leaveAt;
                 });
                 const ret = pairs.find(p => p.isReturn);
                 if (ret) {
                     const c = ret.leg.cache, h = c ? c.h : 6, longHaul = c && c.mode === 'flight' && h > 9;
-                    const dep = atTime(cursorDate, ret.leg.dep || (longHaul ? '18:30' : '11:00'));
+                    const dep = Math.max(atTime(cursorDate, ret.leg.dep || (longHaul ? '18:30' : '11:00')), earliest);
                     legs.push({ from: ret.from, to: ret.to, dep, arrive: dep + h * 3600000, leg: ret.leg, cache: c, isReturn: true });
                 }
                 const start = atTime(defaultStart(), '00:00');
@@ -4508,7 +4534,7 @@ Caribbean|JM|18.00|-72.00|5`;
                 let html = `<div class="content-card trip-stop flex items-center gap-3"><span class="stop-num home">${ICON.home.replace('<svg', '<svg width="15" height="15"')}</span>
                     <div class="min-w-0 flex-1"><div class="font-display font-bold">${t.homePlace ? escapeHtml(t.homePlace.name) : 'Set your home base above'}</div>
                     <div class="text-xs text-gray-400">${t.homePlace ? `Start · ${fmtDate(sched.start, { year: 'numeric' })}` : 'Your trip starts and ends here'}</div></div></div>`;
-                if (!t.stops.length) html += `<div class="content-card p-5 text-sm text-gray-400 text-center">No stops yet — use <b>+ Add stop</b>, the quick-add chips above, or <b>+ Trip</b> on a Route Explorer result.</div>`;
+                if (!t.stops.length) html += `<div class="content-card p-5 text-sm text-gray-400 text-center">No stops yet — use <b>✍ Describe your trip</b>, <b>+ Add stop</b>, or <b>+ Trip</b> on a Route Explorer result.</div>`;
                 t.stops.forEach((s, i) => {
                     const pair = pairs.find(p => p.stop === s), st = stayOf(s);
                     const info = s.place && s.place.country ? getCountryInfo(s.place.country) : null;
@@ -4517,13 +4543,13 @@ Caribbean|JM|18.00|-72.00|5`;
                         <div class="flex items-center gap-2.5 flex-wrap">
                             <span class="stop-num">${i + 1}</span>
                             <div class="flex-1 min-w-[200px]"><input class="custom-input w-full p-2 trip-place" data-i="${i}" value="${escapeHtml(s.query || '')}" placeholder="Town, city or airport (e.g., Beckum, Germany)"></div>
-                            <div class="stepper"><button data-act="nm" data-i="${i}">−</button><span>${s.nights} night${s.nights === 1 ? '' : 's'}</span><button data-act="np" data-i="${i}">+</button></div>
+                            <div class="stepper"><button data-act="nm" data-i="${i}">−</button><span>${s.nights ? `${s.nights} night${s.nights === 1 ? '' : 's'}` : 'transit'}</span><button data-act="np" data-i="${i}">+</button></div>
                             <button class="icon-btn" data-act="up" data-i="${i}" title="Move up">↑</button><button class="icon-btn" data-act="down" data-i="${i}" title="Move down">↓</button><button class="icon-btn" data-act="del" data-i="${i}" title="Remove" style="color:#f87171">✕</button>
                         </div>
                         <div class="flex items-center gap-2 flex-wrap text-xs text-gray-400 mt-2 pl-10">
                             ${s.place ? `${s.place.country ? flagImg(s.place.country) : ''}<span>${escapeHtml(displayName(s.place.country || ''))}</span>${info ? visaBadge(info.status) : ''}` : '<span class="text-amber-400">Type a place and press Enter or pick a suggestion</span>'}
                             ${st ? `<span>· ${fmtDate(st.checkin)} → ${fmtDate(st.checkout)}</span>` : ''}
-                            ${s.stay.booked ? '<span class="hz-chip" style="--c:#22c55e">Stay booked</span>' : (s.nights ? '<span class="hz-chip" style="--c:#f59e0b">Stay not booked</span>' : '')}
+                            ${!s.nights ? '<span class="hz-chip" style="--c:#38bdf8">Transit / transfer point — no overnight stay</span>' : s.stay.booked ? '<span class="hz-chip" style="--c:#22c55e">Stay booked</span>' : '<span class="hz-chip" style="--c:#f59e0b">Stay not booked</span>'}
                         </div>
                         <details class="mt-2 pl-10" ${s._open ? 'open' : ''} data-open="${i}">
                             <summary class="text-xs font-semibold text-purple-300 cursor-pointer list-none">▸ Accommodation, contact &amp; notes${s.stay.name ? ` — ${escapeHtml(s.stay.name)}` : ''}</summary>
@@ -4784,7 +4810,8 @@ Caribbean|JM|18.00|-72.00|5`;
             }
 
             // ---------- Quick add ----------
-            function renderQuick() {
+            function renderQuick() { return; }
+            function renderQuickUnused() {
                 const t = T(), have = new Set(t.stops.map(s => (s.query || '').toLowerCase()));
                 const sites = (plannerState.sitesToVisit || []).filter(s => s.lat != null).slice(0, 8);
                 const wish = Object.entries(countryCategories).filter(([n, c]) => c !== 'visited').map(([n]) => n).slice(0, 8);
@@ -4805,13 +4832,21 @@ Caribbean|JM|18.00|-72.00|5`;
                 document.getElementById('trip-travellers').value = t.travellers || 1;
                 document.getElementById('trip-return').checked = t.returnHome !== false;
                 const sched = schedule(), checks = buildChecks(sched), days = buildProgram(sched);
-                renderStops(sched); renderSummary(sched, checks); renderProgram(days); renderChecks(checks); renderContacts(sched); renderQuick();
+                renderStops(sched); renderSummary(sched, checks); renderProgram(days); renderChecks(checks); renderContacts(sched);
                 renderMap(sched);
                 lastProgramText = programText(sched, days, checks);
                 if (typeof updateNavTrip === 'function') updateNavTrip();
             }
             const scheduleRender = () => { clearTimeout(renderT); renderT = setTimeout(renderAll, 200); };
             window.renderTrip = renderAll;
+            // Snapshot for PDF export
+            window.tripSnapshot = () => {
+                const t = T(), sched = schedule(), days = buildProgram(sched), checks = buildChecks(sched);
+                const countries = [...new Set(t.stops.filter(s => s.place && s.place.country).map(s => s.place.country))];
+                return { trip: t, sched, days, checks, fmtDate, fmtTime, DAY,
+                    emergency: countries.map(c => [c, EMERGENCY[c] || (SCHENGEN.includes(c) ? '112' : '112 (verify locally)')]),
+                    workingDays: sched.legs.length || sched.stays.length ? workingDays(sched.start, atTime(ymd(new Date(sched.end)), '00:00')) : 0 };
+            };
 
             // ---------- Text / print export ----------
             function programText(sched, days, checks) {
@@ -4836,6 +4871,7 @@ Caribbean|JM|18.00|-72.00|5`;
                 if (!query.trim()) { s.place = null; save(); renderAll(); return; }
                 const p = await resolve(query);
                 if (!p) { showMessage(`Couldn't find "${query}".`, 'error'); return; }
+                if (p.iata && /^[A-Za-z]{3}$/.test(query.trim()) && s.nights === 2) s.nights = 0;
                 s.place = p; s.resolvedFor = query; s.leg.cache = null; s.leg.optionsLite = []; s.leg.choice = 'auto';
                 const next = t.stops[i + 1]; if (next) { next.leg.cache = null; next.leg.choice = 'auto'; } else { t.returnLeg.cache = null; t.returnLeg.choice = 'auto'; }
                 save(); renderAll(); computeAll();
@@ -4995,7 +5031,7 @@ Caribbean|JM|18.00|-72.00|5`;
                 const last = out.stops[out.stops.length - 1];
                 if (last && last.nights == null && last.arrive != null && out.returnDate) last.nights = Math.max(0, Math.round((out.returnDate - last.arrive) / DAY));
                 if (!out.start) { const fd = out.stops.find(s => s.arrive != null); if (fd) out.start = fd.arrive - (fd === out.stops[0] ? 0 : DAY); }
-                out.stops.forEach(s => { if (s.nights == null) { s.nights = 2; s.assumed = true; } });
+                out.stops.forEach(s => { if (s.nights == null) { if (s.kind === 'airport') s.nights = 0; else { s.nights = 2; s.assumed = true; } } });
                 return out;
             }
             let undoSnapshot = null;
@@ -5069,7 +5105,7 @@ Caribbean|JM|18.00|-72.00|5`;
                 document.getElementById('trip-describe').value = (plannerState.trip && plannerState.trip.describe) || '';
                 document.getElementById('trip-optimise').addEventListener('click', e => { e.preventDefault(); optimiseOrder(); });
                 document.getElementById('trip-recalc').addEventListener('click', e => { e.preventDefault(); OPT.clear(); computeAll(true); });
-                document.getElementById('trip-print').addEventListener('click', e => { e.preventDefault(); printProgram(); });
+                document.getElementById('trip-print').addEventListener('click', e => { e.preventDefault(); if (window.exportTripPdf) exportTripPdf(false); else printProgram(); });
                 document.getElementById('trip-copy').addEventListener('click', async e => { e.preventDefault(); try { await navigator.clipboard.writeText(lastProgramText); showMessage('Program copied — paste it into an email or WhatsApp'); } catch (err) { showMessage('Copy was blocked by the browser.', 'error'); } });
                 document.getElementById('trip-clear').addEventListener('click', e => { e.preventDefault(); if (!T().stops.length) return; const keep = T(); plannerState.trip = Object.assign(DEF(), { home: keep.home, homePlace: keep.homePlace, passport: keep.passport, contacts: keep.contacts, insurance: keep.insurance }); save(); renderAll(); showMessage('Trip cleared (home, passport & contacts kept)'); });
                 document.getElementById('trip-tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); document.querySelectorAll('#trip-tabs [data-tab]').forEach(x => x.classList.toggle('active', x === b)); ['program', 'checks', 'contacts'].forEach(k => document.getElementById('trip-tab-' + k).classList.toggle('hidden', k !== b.dataset.tab)); });
@@ -5133,8 +5169,7 @@ Caribbean|JM|18.00|-72.00|5`;
                 };
             });
         })();
-    </script>
-    <style>
+    </script>    <style>
         .tz-label { background:none; border:none; }
         .tz-label div { transform: translate(-50%, -50%); text-align:center; white-space:nowrap; pointer-events:none; }
         .tz-label b { display:block; font: 800 12px/1 'Sora',sans-serif; color:#f7e3b5; text-shadow: 0 1px 3px #000, 0 0 8px #000; letter-spacing:.04em; }
@@ -5242,6 +5277,188 @@ Caribbean|JM|18.00|-72.00|5`;
                 window.onCountrySelected = (name, opts) => { if (prevSel) prevSel(name, opts); if (!(opts && opts.keepPanel)) showLocalTime(name); };
                 const prevReady = window.onMapReady;
                 window.onMapReady = () => { if (prevReady) prevReady(); map.on('mousemove', onMove); map.on('mouseout', () => document.getElementById('tz-hover').classList.add('hidden')); };
+            });
+        })();
+    </script>
+    <style>
+        .pdf-doc { width: 718px; box-sizing: border-box; background: #fff; color: #1d1d1f; font-family: 'Inter', Arial, sans-serif; font-size: 11px; line-height: 1.45; padding: 4px 6px; }
+        .pdf-doc * { color: inherit; }
+        .pdf-doc .pdf-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #b88a3b; padding-bottom: 8px; margin-bottom: 10px; }
+        .pdf-doc h1 { font-family: 'Sora', Arial, sans-serif; font-size: 22px; font-weight: 800; margin: 0; color: #111; }
+        .pdf-doc .sub { color: #666; font-size: 11px; margin-top: 2px; }
+        .pdf-doc .brand { text-align: right; color: #8a6a2c; font-weight: 700; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+        .pdf-doc h2 { font-family: 'Sora', Arial, sans-serif; font-size: 14px; font-weight: 700; color: #7a5a1e; border-bottom: 1px solid #e8dcc0; padding-bottom: 3px; margin: 16px 0 6px; }
+        .pdf-doc table { width: 100%; border-collapse: collapse; margin: 4px 0 8px; }
+        .pdf-doc th { background: #f4ecda; text-align: left; padding: 5px 6px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #5b4417; }
+        .pdf-doc td { padding: 5px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+        .pdf-doc .kv td:first-child { width: 34%; color: #666; }
+        .pdf-doc .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 0 4px; }
+        .pdf-doc .tile { border: 1px solid #e8dcc0; border-radius: 6px; padding: 6px 8px; background: #fcf9f2; }
+        .pdf-doc .tile b { display: block; font-size: 15px; font-family: 'Sora', Arial, sans-serif; color: #5b4417; }
+        .pdf-doc .tile span { font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: #8a7a5c; }
+        .pdf-doc .day { border: 1px solid #e3e3e3; border-radius: 6px; margin: 0 0 8px; overflow: hidden; }
+        .pdf-doc .day-h { background: #faf6ec; padding: 6px 9px; font-weight: 700; display: flex; justify-content: space-between; gap: 10px; }
+        .pdf-doc .day-h small { font-weight: 500; color: #666; }
+        .pdf-doc .ev { display: grid; grid-template-columns: 42px 1fr; gap: 6px; padding: 4px 9px; border-top: 1px dashed #eee; }
+        .pdf-doc .ev .t { font-weight: 700; color: #8a6a2c; }
+        .pdf-doc .chip { display: inline-block; border: 1px solid #c9c9c9; border-radius: 8px; padding: 0 5px; font-size: 9px; margin-left: 4px; color: #444; }
+        .pdf-doc .chip.ok { border-color: #86efac; color: #15803d; } .pdf-doc .chip.no { border-color: #fcd34d; color: #92400e; }
+        .pdf-doc .warn { border-left: 3px solid #ccc; padding: 4px 8px; margin: 0 0 5px; background: #fafafa; }
+        .pdf-doc .warn.crit { border-color: #dc2626; background: #fef2f2; } .pdf-doc .warn.high { border-color: #d97706; background: #fffbeb; } .pdf-doc .warn.info { border-color: #0ea5e9; background: #f0f9ff; } .pdf-doc .warn.ok { border-color: #16a34a; background: #f0fdf4; }
+        .pdf-doc .warn b { display: block; }
+        .pdf-doc .box { display: inline-block; width: 11px; height: 11px; border: 1.3px solid #555; border-radius: 2px; margin-right: 6px; vertical-align: -2px; text-align: center; font-size: 9px; line-height: 9px; font-weight: 800; }
+        .pdf-doc .cols { column-count: 2; column-gap: 20px; }
+        .pdf-doc .cat { break-inside: avoid; page-break-inside: avoid; margin: 0 0 12px; }
+        .pdf-doc .cat h3 { font-family: 'Sora', Arial, sans-serif; font-size: 12px; margin: 0 0 4px; color: #5b4417; display: flex; justify-content: space-between; }
+        .pdf-doc .item { padding: 2px 0; } .pdf-doc .item.done { color: #888; text-decoration: line-through; }
+        .pdf-doc .flag-imp { color: #dc2626; font-weight: 800; }
+        .pdf-doc .foot { margin-top: 14px; padding-top: 6px; border-top: 1px solid #eee; color: #999; font-size: 9px; text-align: center; }
+        .pdf-doc a { color: #7a5a1e; text-decoration: none; }
+        .pdf-busy { position: fixed; inset: 0; z-index: 10001; display: grid; place-items: center; background: rgba(2,4,9,.6); backdrop-filter: blur(3px); color: #f7e3b5; font: 700 14px 'Sora', sans-serif; }
+    </style>
+    <script>
+        // =====================================================================
+        // PDF EXPORT — full planner, trip program and packing list (A4).
+        // Uses html2pdf.js (loaded on demand); falls back to the browser's
+        // print dialog ("Save as PDF") if the library can't be loaded.
+        // =====================================================================
+        (function () {
+            const LIBS = ['https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'];
+            let libPromise = null;
+            function loadLib() {
+                if (window.html2pdf) return Promise.resolve(window.html2pdf);
+                if (libPromise) return libPromise;
+                libPromise = new Promise((resolve, reject) => {
+                    let i = 0;
+                    const tryNext = () => {
+                        if (i >= LIBS.length) { libPromise = null; reject(new Error('PDF library unavailable')); return; }
+                        const sc = document.createElement('script'); sc.src = LIBS[i++]; sc.async = true;
+                        sc.onload = () => window.html2pdf ? resolve(window.html2pdf) : tryNext();
+                        sc.onerror = () => { sc.remove(); tryNext(); };
+                        document.head.appendChild(sc);
+                    };
+                    tryNext();
+                });
+                return libPromise;
+            }
+            const esc = v => escapeHtml(v == null ? '' : String(v));
+            const stripSvg = h => String(h || '').replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<img[^>]*>/g, '');
+            const today = () => new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+            const slug = s => String(s || 'trip').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'trip';
+            function head(title, sub) { return `<div class="pdf-head"><div><h1>${esc(title)}</h1><div class="sub">${sub || ''}</div></div><div class="brand">My Travel App<br><span style="font-weight:500;letter-spacing:0;text-transform:none;color:#999">Generated ${today()}</span></div></div>`; }
+            const foot = () => `<div class="foot">My Travel App · ianventer.github.io/travel-map · Estimates only — confirm visas, health requirements and bookings with official sources.</div>`;
+
+            async function makePdf(innerHtml, filename) {
+                const busy = document.createElement('div'); busy.className = 'pdf-busy'; busy.textContent = 'Creating PDF…'; document.body.appendChild(busy);
+                const holder = document.createElement('div');
+                holder.style.cssText = 'position:absolute;left:0;top:0;width:718px;z-index:-1;pointer-events:none;background:#fff;';
+                const prevScroll = [window.scrollX, window.scrollY]; window.scrollTo(0, 0);
+                holder.innerHTML = `<div class="pdf-doc">${innerHtml}</div>`;
+                document.body.appendChild(holder);
+                const el = holder.firstElementChild;
+                try {
+                    const lib = await loadLib();
+                    await lib().set({
+                        margin: [10, 10, 12, 10], filename,
+                        image: { type: 'jpeg', quality: 0.95 },
+                        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0 },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                        pagebreak: { mode: ['css', 'legacy'], avoid: ['.day', 'tr', '.warn', '.cat', '.tile', 'h2'] }
+                    }).from(el).save();
+                    showMessage(`Saved ${filename}`);
+                } catch (err) {
+                    console.warn('html2pdf failed, using print dialog', err);
+                    const w = window.open('', '_blank');
+                    if (!w) { showMessage('Allow pop-ups, then choose "Save as PDF" in the print dialog.', 'error'); }
+                    else {
+                        const css = [...document.querySelectorAll('style')].map(s => s.textContent).filter(t => t.includes('.pdf-doc')).join('\n');
+                        w.document.write(`<!DOCTYPE html><html><head><title>${esc(filename.replace(/\.pdf$/, ''))}</title><style>${css} body{margin:0;background:#fff} @page{size:A4;margin:12mm} .pdf-doc{width:auto}</style></head><body>${el.outerHTML}<script>setTimeout(()=>print(),400)<\/script></body></html>`);
+                        w.document.close();
+                        showMessage('Choose "Save as PDF" as the printer to save the file.');
+                    }
+                } finally { holder.remove(); busy.remove(); window.scrollTo(prevScroll[0], prevScroll[1]); }
+            }
+
+            // ---------- Trip sections ----------
+            function tripSections(snap) {
+                const t = snap.trip, { sched, days, checks, fmtDate, fmtTime } = snap;
+                if (!t.stops.length) return '';
+                const legs = sched.legs;
+                const nights = t.stops.reduce((a, s) => a + (+s.nights || 0), 0);
+                const km = legs.reduce((a, l) => a + (l.cache ? l.cache.km : 0), 0), hrs = legs.reduce((a, l) => a + (l.cache ? l.cache.h : 0), 0);
+                const countries = [...new Set(t.stops.filter(s => s.place && s.place.country).map(s => displayName(s.place.country)))];
+                const nDays = Math.round((Date.parse(new Date(sched.end).toISOString().slice(0, 10)) - sched.start) / 86400000) + 1;
+                let h = `<h2>Trip overview</h2>
+                    <div class="tiles"><div class="tile"><span>Dates</span><b>${fmtDate(sched.start)} – ${fmtDate(sched.end)}</b></div><div class="tile"><span>Days / nights</span><b>${nDays} / ${nights}</b></div>
+                    <div class="tile"><span>Distance · travel</span><b>${fmtKm(km)} · ${fmtH(hrs)}</b></div><div class="tile"><span>Leave days</span><b>${snap.workingDays}</b></div></div>
+                    <div style="margin:4px 0 2px"><b>Home base:</b> ${esc(t.homePlace ? t.homePlace.name : '—')} &nbsp;·&nbsp; <b>Countries:</b> ${esc(countries.join(', ') || '—')} &nbsp;·&nbsp; <b>Travellers:</b> ${t.travellers || 1}${t.passport ? ` &nbsp;·&nbsp; <b>Passport expires:</b> ${fmtDate(Date.parse(t.passport), { year: 'numeric' })}` : ''}</div>`;
+                h += `<h2>Stops &amp; accommodation</h2><table><thead><tr><th>#</th><th>Place</th><th>Dates</th><th>Nights</th><th>Accommodation &amp; contact</th><th>Status</th></tr></thead><tbody>`
+                    + sched.stays.map(st => { const s = st.stop, c = s.stay; return `<tr><td><b>${st.idx + 1}</b></td><td><b>${esc(s.place.name)}</b><br><span style="color:#777">${esc(displayName(s.place.country || ''))}</span></td><td>${fmtDate(st.checkin)}<br>→ ${st.nights ? fmtDate(st.checkout) : 'same day'}</td><td>${st.nights || 'transit'}</td>
+                        <td>${c.name ? `<b>${esc(c.name)}</b><br>` : ''}${[c.address, c.phone && '☎ ' + c.phone, c.email, c.ref && 'Ref ' + c.ref, c.checkin && st.nights ? 'Check-in from ' + c.checkin : ''].filter(Boolean).map(esc).join('<br>')}${s.notes ? `<br><i style="color:#777">${esc(s.notes)}</i>` : ''}</td>
+                        <td>${!st.nights ? '<span class="chip">Transit</span>' : c.booked ? '<span class="chip ok">Booked</span>' : '<span class="chip no">Not booked</span>'}</td></tr>`; }).join('') + `</tbody></table>`;
+                h += `<h2>Travel legs</h2><table><thead><tr><th>Departs</th><th>Route</th><th>Transport</th><th>Duration</th><th>Ref</th><th>Status</th></tr></thead><tbody>`
+                    + legs.map(l => `<tr><td>${fmtDate(l.dep)}<br>${fmtTime(l.dep)}</td><td><b>${esc(l.from.name)} → ${esc(l.to.name)}</b>${l.isReturn ? ' <span class="chip">home</span>' : ''}</td><td>${l.cache ? `<b>${esc(l.cache.title)}</b><br><span style="color:#777">${esc(l.cache.detail)}</span>` : '—'}</td><td>${l.cache ? fmtH(l.cache.h) : ''}<br><span style="color:#777">${l.cache ? fmtKm(l.cache.km) : ''}</span></td><td>${esc(l.leg.ref || '')}</td><td>${l.leg.booked ? '<span class="chip ok">Booked</span>' : '<span class="chip no">Not booked</span>'}</td></tr>`).join('') + `</tbody></table>`;
+                h += `<h2>Day-by-day program</h2>` + days.map(d => {
+                    const evs = d.ev.map(e => { const tmp = document.createElement('div'); tmp.innerHTML = stripSvg(e[1]); const row = tmp.firstElementChild; const time = row && row.querySelector('.t') ? row.querySelector('.t').textContent : ''; const body = row && row.children[2] ? row.children[2].innerHTML : tmp.innerHTML; return `<div class="ev"><div class="t">${esc(time)}</div><div>${body.replace(/class="hz-chip"[^>]*style="--c:#22c55e"/g, 'class="chip ok"').replace(/class="hz-chip"[^>]*style="--c:#f59e0b"/g, 'class="chip no"').replace(/class="hz-chip"[^>]*>/g, 'class="chip">')}</div></div>`; }).join('');
+                    return `<div class="day"><div class="day-h"><span>Day ${d.n} · ${fmtDate(d.d, { weekday: 'long', year: 'numeric' })}</span><small>${esc(d.where || '')}${d.night ? ` · Night: ${esc(d.night)}` : ''}</small></div>${evs || '<div class="ev"><div></div><div style="color:#888">Free day</div></div>'}</div>`;
+                }).join('');
+                const important = checks.filter(c => c.sev !== 'ok' || /passport/i.test(c.title));
+                if (important.length) h += `<h2>Requirements &amp; warnings</h2>` + important.map(c => `<div class="warn ${c.sev}"><b>${{ crit: '⛔ ', high: '⚠ ', info: 'ℹ ', ok: '✓ ' }[c.sev]}${esc(c.title)}</b>${stripSvg(c.body)}</div>`).join('');
+                const stays = t.stops.filter(s => s.place && (s.stay.name || s.stay.phone || s.stay.email));
+                h += `<h2>Contacts &amp; emergency</h2><table class="kv"><tbody>`
+                    + stays.map(s => `<tr><td>${esc(s.stay.name || s.place.name)} (${esc(s.place.name)})</td><td>${[s.stay.phone && '☎ ' + s.stay.phone, s.stay.email, s.stay.address, s.stay.ref && 'Ref ' + s.stay.ref].filter(Boolean).map(esc).join(' · ')}</td></tr>`).join('')
+                    + snap.emergency.map(([c, n]) => `<tr><td>Emergency — ${esc(displayName(c))}</td><td><b>${esc(n)}</b></td></tr>`).join('')
+                    + `<tr><td>DIRCO consular emergencies (24 h)</td><td><b>+27 12 351 1000</b> · dirco.gov.za</td></tr>`
+                    + (t.insurance && (t.insurance.provider || t.insurance.policy) ? `<tr><td>Travel insurance</td><td>${esc([t.insurance.provider, t.insurance.policy && 'Policy ' + t.insurance.policy, t.insurance.phone && '☎ ' + t.insurance.phone].filter(Boolean).join(' · '))}</td></tr>` : '')
+                    + (t.contacts || []).filter(c => c.name || c.phone).map(c => `<tr><td>${esc(c.name || 'Contact')}</td><td>${esc(c.phone || '')}</td></tr>`).join('')
+                    + `</tbody></table>`;
+                return h;
+            }
+
+            // ---------- Exports ----------
+            window.exportTripPdf = async (full) => {
+                const snap = window.tripSnapshot ? tripSnapshot() : null;
+                const d = plannerState.details || {};
+                const title = full ? 'Trip Planner' : 'Trip Program';
+                const name = d.destination || (snap && snap.trip.stops.filter(s => s.place).map(s => s.place.name).slice(0, 4).join(' · ')) || 'My trip';
+                let h = head(`${title} — ${name}`, snap && snap.trip.stops.length ? `${snap.fmtDate(snap.sched.start, { year: 'numeric' })} to ${snap.fmtDate(snap.sched.end, { year: 'numeric' })}` : '');
+                if (full) {
+                    h += `<h2>Core details</h2><table class="kv"><tbody>
+                        <tr><td>Destination</td><td><b>${esc(d.destination || '—')}</b></td></tr>
+                        <tr><td>Leave</td><td>${d.leaveStartDate ? esc(d.leaveStartDate) : '—'} → ${d.leaveEndDate ? esc(d.leaveEndDate) : '—'}</td></tr>
+                        <tr><td>Leave days required</td><td>${esc(document.getElementById('leave-days-required').textContent)}</td></tr>
+                        <tr><td>Available leave</td><td>${esc(d.availableLeaveDays || '—')}</td></tr>
+                        ${document.getElementById('holidays-list').textContent.trim() ? `<tr><td>SA public holidays in range</td><td>${esc(document.getElementById('holidays-list').innerText.replace(/\n+/g, ' · '))}</td></tr>` : ''}
+                        </tbody></table>`;
+                }
+                if (snap) h += tripSections(snap);
+                if (full) {
+                    const it = (plannerState.itinerary || []).filter(x => x.name || x.description);
+                    if (it.length) h += `<h2>Itinerary / stops</h2><table><thead><tr><th>#</th><th>Stop</th><th>Transport</th><th>Notes</th></tr></thead><tbody>${it.map((x, i) => `<tr><td>${i + 1}</td><td><b>${esc(x.name)}</b></td><td>${esc(x.transport || '')}</td><td style="white-space:pre-wrap">${esc(x.description || '')}</td></tr>`).join('')}</tbody></table>`;
+                    const bud = (plannerState.budget || []).filter(b => b.name || b.cost);
+                    if (bud.length) { const tot = bud.reduce((a, b) => a + (parseFloat(b.cost) || 0), 0); h += `<h2>Budget</h2><table><thead><tr><th>Expense</th><th style="text-align:right">Cost (ZAR)</th></tr></thead><tbody>${bud.map(b => `<tr><td>${esc(b.name)}</td><td style="text-align:right">${b.cost ? 'R ' + (+b.cost).toLocaleString('en-ZA', { minimumFractionDigits: 2 }) : '—'}</td></tr>`).join('')}<tr><td><b>Total</b></td><td style="text-align:right"><b>R ${tot.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</b></td></tr></tbody></table>`; }
+                    const tasks = plannerState.tasks || [];
+                    if (tasks.length) h += `<h2>Planning checklist</h2>` + tasks.map(tk => { const done = tk.subtasks.filter(x => x.completed).length; return `<div class="cat"><h3><span>${tk.important ? '<span class="flag-imp">! </span>' : ''}${esc(tk.name)}</span><span style="font-weight:500;color:#888">${done}/${tk.subtasks.length}</span></h3>${tk.description ? `<div style="color:#555;white-space:pre-wrap;margin-bottom:3px">${esc(tk.description)}</div>` : ''}${tk.subtasks.map(st => `<div class="item ${st.completed ? 'done' : ''}"><span class="box">${st.completed ? '✓' : ''}</span>${esc(st.text)}</div>`).join('')}</div>`; }).join('');
+                }
+                if (!full && (!snap || !snap.trip.stops.length)) { showMessage('Add stops to the Trip Builder first.', 'error'); return; }
+                h += foot();
+                await makePdf(h, `${full ? 'trip-planner' : 'trip-program'}-${slug(name)}.pdf`);
+            };
+            window.exportPackingPdf = async () => {
+                const list = plannerState.packingList || [];
+                const total = list.reduce((a, c) => a + c.items.length, 0), packed = list.reduce((a, c) => a + c.items.filter(i => i.packed).length, 0);
+                if (!total) { showMessage('Your packing list is empty.', 'error'); return; }
+                const d = plannerState.details || {}, snap = window.tripSnapshot ? tripSnapshot() : null;
+                const name = d.destination || (snap && snap.trip.stops.filter(s => s.place).map(s => s.place.name).slice(0, 4).join(' · ')) || 'My trip';
+                let h = head(`Packing list — ${name}`, `${packed} of ${total} items packed${snap && snap.trip.stops.length ? ` · ${snap.fmtDate(snap.sched.start, { year: 'numeric' })} to ${snap.fmtDate(snap.sched.end, { year: 'numeric' })}` : ''}`);
+                h += `<div class="cols">` + list.filter(c => c.items.length).map(c => `<div class="cat"><h3><span>${c.priority ? '<span class="flag-imp">! </span>' : ''}${esc(c.name)}</span><span style="font-weight:500;color:#888">${c.items.filter(i => i.packed).length}/${c.items.length}</span></h3>
+                    ${c.items.map(i => `<div class="item ${i.packed ? 'done' : ''}"><span class="box">${i.packed ? '✓' : ''}</span>${esc(i.text)}${i.priority ? ' <span class="flag-imp">!</span>' : ''}</div>`).join('')}</div>`).join('') + `</div>`;
+                h += foot();
+                await makePdf(h, `packing-list-${slug(name)}.pdf`);
+            };
+            document.addEventListener('DOMContentLoaded', () => {
+                document.getElementById('planner-pdf').addEventListener('click', e => { e.preventDefault(); exportTripPdf(true); });
+                document.getElementById('packing-pdf').addEventListener('click', e => { e.preventDefault(); exportPackingPdf(); });
             });
         })();
     </script>
