@@ -5597,11 +5597,10 @@ Caribbean|JM|18.00|-72.00|5`;
                     let bd = Infinity;
                     TOWNS.forEach(t => { if (t.pop < 150000) return; const d = haversine([lat, lng], [t.lat, t.lng]); const lim = t.pop >= 1e6 ? 20 : t.pop >= 4e5 ? 13 : 8; if (d <= lim && d < bd) { bd = d; city = t; } });
                 }
-                if (city && !(apt && apt.km < 6)) {
-                    const sub = town && km <= 4 && town.n.toLowerCase() !== city.n.toLowerCase() ? town.n : '';
-                    return { name: city.n, short: city.n, lat, lng, country: country || city.c, exact: true, near: sub ? `${sub} area` : '' };
-                }
-                if (town && km <= 4) return { name: town.n, short: town.n, lat: town.lat, lng: town.lng, country: country || town.c, exact: true };
+                const inCity = city && (!town || town.n.toLowerCase() !== city.n.toLowerCase()) ? `${city.n} area` : '';
+                // Small places always keep their own name (Parow, Beckum…); the big city they sit in is shown underneath
+                if (town && km <= 4) return { name: town.n, short: town.n, lat: town.lat, lng: town.lng, country: country || town.c, exact: true, near: inCity };
+                if (city && !(apt && apt.km < 6)) return { name: city.n, short: city.n, lat, lng, country: country || city.c, exact: true, near: '' };
                 const near = town && km < 60 ? `near ${town.n}` : '';
                 return { name: near ? `Pin ${near}` : `Pin ${lat.toFixed(3)}, ${lng.toFixed(3)}`, short: town && km < 60 ? town.n : 'Pin', lat, lng, country: country || (town ? town.c : ''), exact: false, near: town && km < 60 ? `${Math.round(km)} km from ${town.n}` : '' };
             }
