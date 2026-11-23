@@ -510,7 +510,7 @@
                             <input type="text" id="search-country" placeholder="Search a country, city or town…" class="custom-input w-full p-3 outline-none">
                             <div id="search-suggestions" class="absolute z-[1200] w-full hidden shadow-xl max-h-72 overflow-y-auto dark-scrollbar"></div>
                         </div>
-                        <div class="text-xs text-gray-400 mt-2 pl-1">Click a country to select it, or hover to see its name and SA visa status.</div>
+                        <div class="text-xs text-gray-400 mt-2 pl-1">Click a country to select it, hover for its SA visa status, or right-click anywhere to travel there.</div>
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
                         <div class="content-card stat-tile"><div class="stat-ico metal-emerald" style="--glow:rgba(34,197,94,.6)"><svg fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div><div><div id="stat-visited" class="stat-val">0</div><div class="stat-lbl">Visited</div></div></div>
@@ -3179,10 +3179,15 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
 
         function legHours(km) { return km / 820 + 0.45; }
         function computeSaRoutes(name) {
-            const O = APT[routeOrigin], dests = countryAirports(name);
+            const dests = countryAirports(name);
             const pt = countryPoint(name); if (!pt || name === 'South Africa') return [];
             // Always route to the country's MAIN international airport (first listed for the country)
             const D = dests[0] || { iata: '—', city: pt.label, lat: pt.lat, lng: pt.lng, country: name, approx: true };
+            return computeFlightsTo(routeOrigin, D, name);
+        }
+        // Realistic SA → anywhere routings: non-stop, via a hub served from the origin, via JNB, or JNB + hub
+        function computeFlightsTo(oIata, D, name) {
+            const O = APT[oIata]; if (!O || !D || O.iata === D.iata) return [];
             const P = a => [a.lat, a.lng];
             const options = [];
             const legsTo = (path) => { let km = 0, h = 0; for (let i = 1; i < path.length; i++) { const d = haversine(P(path[i - 1]), P(path[i])); km += d; h += legHours(d); } h += (path.length - 2) * 2.5; return { km, h }; };
@@ -3194,18 +3199,20 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
             const hubsFrom = o => AIRPORTS.filter(h => h.hub && h.iata !== o && h.iata !== D.iata && directFrom(o).includes(h.iata) && h.country !== 'South Africa' && h.country !== name && okHub(h));
             const add = (path, type) => { const r = legsTo(path); if (r.km < haversine(P(O), P(D)) * 1.6 + 600) options.push({ path, type, ...r }); };
             // Non-stop
-            if (directFrom(routeOrigin).includes(D.iata)) add([O, D], 'Non-stop');
+            if (directFrom(oIata).includes(D.iata) || (O.country === 'South Africa' && D.country === 'South Africa')) add([O, D], 'Non-stop');
             // 1 stop: via a hub served non-stop from the origin (e.g. CPT → DOH → …)
-            hubsFrom(routeOrigin).forEach(h => add([O, h, D], `1 stop · via ${h.iata}`));
-            if (routeOrigin !== 'JNB') {
+            hubsFrom(oIata).forEach(h => add([O, h, D], `1 stop · via ${h.iata}`));
+            if (oIata !== 'JNB' && APT.JNB && D.iata !== 'JNB') {
                 // 1 stop: domestic hop to OR Tambo, then non-stop from JNB
-                if (directFrom('JNB').includes(D.iata)) add([O, APT.JNB, D], '1 stop · via JNB');
+                if (directFrom('JNB').includes(D.iata) || D.country === 'South Africa') add([O, APT.JNB, D], '1 stop · via JNB');
                 // 2 stops: OR Tambo → hub that only JNB serves (SIN, HKG, GRU, PER, SYD, ATL…)
-                hubsFrom('JNB').filter(h => !directFrom(routeOrigin).includes(h.iata)).forEach(h => add([O, APT.JNB, h, D], `2 stops · via JNB & ${h.iata}`));
+                hubsFrom('JNB').filter(h => !directFrom(oIata).includes(h.iata)).forEach(h => add([O, APT.JNB, h, D], `2 stops · via JNB & ${h.iata}`));
             }
             const seen = new Set();
             return options.sort((a, b) => a.h - b.h).filter(o => { if (seen.has(o.type)) return false; seen.add(o.type); return true; }).slice(0, 4).map(o => ({ ...o, dest: D }));
         }
+        window.computeFlightsTo = computeFlightsTo;
+        window.getRouteOrigin = () => routeOrigin;
         let saSelectedIdx = 0;
         function drawSaRoutes(name, idx) {
             if (!saRouteLayer) return;
@@ -5460,6 +5467,277 @@ Caribbean|JM|18.00|-72.00|5`;
                 document.getElementById('planner-pdf').addEventListener('click', e => { e.preventDefault(); exportTripPdf(true); });
                 document.getElementById('packing-pdf').addEventListener('click', e => { e.preventDefault(); exportPackingPdf(); });
             });
+        })();
+    </script>
+    <style>
+        .ctx-menu { position:absolute; z-index:1200; min-width:230px; padding:6px; border-radius:14px; color:#eef1f6; font-size:13px;
+            background: linear-gradient(160deg, rgba(24,31,48,.97), rgba(8,12,20,.98)) padding-box, linear-gradient(135deg, rgba(255,255,255,.35), rgba(255,255,255,.05) 40%, rgba(217,180,106,.55)) border-box; border:1px solid transparent; box-shadow: 0 20px 44px -14px rgba(0,0,0,.95); }
+        .ctx-menu .ctx-head { padding:7px 10px 8px; border-bottom:1px solid rgba(255,255,255,.08); margin-bottom:4px; }
+        .ctx-menu .ctx-item { display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:8px 10px; border-radius:9px; font-weight:600; }
+        .ctx-menu .ctx-item:hover { background: rgba(217,180,106,.14); }
+        .ctx-menu .ctx-item .ic { width:22px; height:22px; border-radius:7px; display:grid; place-items:center; background: rgba(255,255,255,.06); color:#f7e3b5; flex:none; }
+        .ctx-menu .ctx-item .ic svg { width:14px; height:14px; }
+        .tt-panel { position:absolute; z-index:1100; left:60px; top:16px; width:min(350px, calc(100% - 80px)); max-height:calc(100% - 32px); overflow:auto; padding:14px; border-radius:16px; color:#eef1f6;
+            background: linear-gradient(160deg, rgba(22,29,45,.96), rgba(8,12,20,.97)) padding-box, linear-gradient(135deg, rgba(255,255,255,.32), rgba(255,255,255,.04) 40%, rgba(217,180,106,.5)) border-box; border:1px solid transparent; box-shadow: 0 22px 48px -16px rgba(0,0,0,.95); }
+        .tt-opt { display:flex; gap:10px; align-items:flex-start; padding:9px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.025); cursor:pointer; transition: border-color .15s, background .15s; }
+        .tt-opt:hover { background: rgba(255,255,255,.05); }
+        .tt-opt.sel { border-color: var(--c); background: rgba(255,255,255,.06); box-shadow: 0 0 18px -8px var(--c); }
+        .tt-opt .mode-badge { width:30px; height:30px; border-radius:9px; flex:none; }
+        .tt-pin { width:26px; height:34px; transform:translate(-13px,-32px); filter: drop-shadow(0 0 8px rgba(247,227,181,.8)) drop-shadow(0 4px 6px rgba(0,0,0,.7)); }
+    </style>
+    <script>
+        // =====================================================================
+        // RIGHT-CLICK "TRAVEL TO HERE" on the main map
+        // =====================================================================
+        (function () {
+            const PIN_SVG = '<svg viewBox="0 0 24 32" class="tt-pin"><defs><linearGradient id="ttg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6dc"/><stop offset=".5" stop-color="#d9b46a"/><stop offset="1" stop-color="#8a6526"/></linearGradient></defs><path d="M12 0C5.4 0 0 5.2 0 11.7 0 20.5 12 32 12 32s12-11.5 12-20.3C24 5.2 18.6 0 12 0z" fill="url(#ttg)" stroke="#2a1d06" stroke-width="1"/><circle cx="12" cy="11.5" r="4.2" fill="#0b1020"/></svg>';
+            const ICON = {
+                go: MODE.flight.icon,
+                pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>',
+                stop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+                explore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 18h6l4-12h6M17 3l3 3-3 3"/></svg>',
+                copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/></svg>'
+            };
+            let menuEl, panelEl, ttLayer, ttState = null, ctxPlace = null;
+            const SA_AIRPORTS = ['CPT', 'JNB', 'DUR'];
+
+            // ---------- Geography ----------
+            function inRing(pt, ring) { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1]; if (((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)) c = !c; } return c; }
+            function countryAtPt(lat, lng) {
+                const gj = window.WORLD_GEOJSON; if (!gj) return '';
+                for (const f of gj.features) { const g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates; for (const poly of polys) if (inRing([lng, lat], poly[0])) return f.properties.name; }
+                return '';
+            }
+            const wrapLng = lng => ((lng + 180) % 360 + 360) % 360 - 180;
+            async function describePoint(latlng) {
+                const lat = latlng.lat, lng = wrapLng(latlng.lng);
+                const country = countryAtPt(lat, lng);
+                let town = null, km = Infinity;
+                if (window.gazReady) { try { await gazReady(); } catch (e) { } }
+                if (window.gazInBounds) {
+                    for (const r of [0.15, 0.5, 1.2]) {
+                        const list = gazInBounds(L.latLngBounds([lat - r, lng - r], [lat + r, lng + r]), 4000);
+                        list.forEach(t => { const d = haversine([lat, lng], [t.lat, t.lng]); if (d < km) { km = d; town = t; } });
+                        if (town) break;
+                    }
+                }
+                const apt = nearest(AIRPORTS, [lat, lng], 25);
+                if (apt && apt.km < Math.min(km, 6)) return { name: `${apt.city} airport (${apt.iata})`, short: apt.iata, lat: apt.lat, lng: apt.lng, iata: apt.iata, country: apt.country, exact: true };
+                if (town) town = { ...town, n: town.n.replace(/^(.+?) \d{1,2}(?: .*)?$/, '$1') };
+                if (town && km <= 4) return { name: town.n, short: town.n, lat: town.lat, lng: town.lng, country: country || town.c, exact: true };
+                const near = town && km < 60 ? `near ${town.n}` : '';
+                return { name: near ? `Pin ${near}` : `Pin ${lat.toFixed(3)}, ${lng.toFixed(3)}`, short: town && km < 60 ? town.n : 'Pin', lat, lng, country: country || (town ? town.c : ''), exact: false, near: town && km < 60 ? `${Math.round(km)} km from ${town.n}` : '' };
+            }
+
+            // ---------- Origins ----------
+            function origins() {
+                const list = [], t = plannerState.trip;
+                if (t && t.homePlace && t.homePlace.lat != null) list.push({ key: 'home', label: `Home · ${t.homePlace.name}`, place: { name: t.homePlace.name, lat: t.homePlace.lat, lng: t.homePlace.lng, iata: t.homePlace.iata || null, country: t.homePlace.country || '' } });
+                SA_AIRPORTS.forEach(c => { const a = APT[c]; if (a) list.push({ key: c, label: `${a.city} (${c})`, place: { name: a.city, lat: a.lat, lng: a.lng, iata: c, country: a.country } }); });
+                return list;
+            }
+            function currentOrigin() {
+                const list = origins(); const saved = localStorage.getItem('travelToFrom');
+                return list.find(o => o.key === saved) || list.find(o => o.key === 'home') || list.find(o => o.key === (window.getRouteOrigin ? getRouteOrigin() : 'CPT')) || list[0];
+            }
+
+            // ---------- Options ----------
+            function hubFlightOptions(A, B) {
+                let oA = A.iata && SA_AIRPORTS.includes(A.iata) ? APT[A.iata] : null;
+                if (!oA) { const n = nearest(SA_AIRPORTS.map(c => APT[c]).filter(Boolean), [A.lat, A.lng], 600); if (n) oA = APT[n.iata]; }
+                if (!oA || !window.computeFlightsTo) return [];
+                const D = B.iata ? APT[B.iata] : nearest(AIRPORTS, [B.lat, B.lng], 3000);
+                if (!D || D.iata === oA.iata) return [];
+                const dCountry = B.country || D.country;
+                const kmA = haversine([A.lat, A.lng], [oA.lat, oA.lng]), kmB = haversine([D.lat, D.lng], [B.lat, B.lng]);
+                return computeFlightsTo(oA.iata, APT[D.iata] || D, dCountry).map(o => {
+                    const fpts = []; for (let i = 1; i < o.path.length; i++) { const p = o.path[i - 1], q = o.path[i]; const s = haversine([p.lat, p.lng], [q.lat, q.lng]) > 1800 ? gcPath([p.lat, p.lng], [q.lat, q.lng]) : flightArc([p.lat, p.lng], [q.lat, q.lng]); fpts.push(...(i > 1 ? s.slice(1) : s)); }
+                    const segs = [];
+                    if (kmA > 3) segs.push({ mode: 'car', pts: [[A.lat, A.lng], [oA.lat, oA.lng]], km: kmA * 1.25 });
+                    segs.push({ mode: 'flight', pts: fpts, km: pathLengthKm(fpts) });
+                    if (kmB > 3) segs.push({ mode: 'car', pts: [[D.lat, D.lng], [B.lat, B.lng]], km: kmB * 1.25 });
+                    const xferWord = km => km * 1.25 < 80 ? 'taxi / Uber' : 'drive';
+                    const r = {
+                        mode: 'flight', path: o.path, segs, pts: segs.flatMap(s => s.pts), km: segs.reduce((t, s) => t + s.km, 0),
+                        h: o.h + 2.5 + (kmA + kmB) * 1.25 / 50, air: o.h,
+                        title: o.type === 'Non-stop' ? `Non-stop ${oA.iata} → ${D.iata}` : `${o.type}`,
+                        airports: [oA.iata, D.iata], via: o.path.slice(1, -1).map(p => p.iata),
+                        detail: `${kmA > 3 ? `${A.name} → ${oA.iata} (${xferWord(kmA)}, ~${Math.round(kmA * 1.25)} km) · ` : ''}${o.path.map(p => `${p.iata} (${p.city})`).join(' → ')} · ~${fmtH(o.h)} flying incl. layovers + ~2h30 check-in${kmB > 3 ? ` · ${D.iata} → ${B.short || B.name} (${xferWord(kmB)}, ~${Math.round(kmB * 1.25)} km)` : ''}`,
+                        book: `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${oA.iata} to ${D.iata}`)}`
+                    };
+                    r.key = 'flight:' + r.title; r.co2 = co2(r); return r;
+                });
+            }
+            async function travelOptions(A, B) {
+                const direct = haversine([A.lat, A.lng], [B.lat, B.lng]);
+                const hub = direct > 300 ? hubFlightOptions(A, B) : [];
+                let ground = [];
+                try { ground = await computeRouteOptions(A, B); } catch (e) { console.warn(e); }
+                if (hub.length) ground = ground.filter(r => !(r.mode === 'flight' && !hasTrain(r)));
+                const all = [...ground, ...hub].sort((p, q) => p.h - q.h);
+                const seen = new Set(); return all.filter(r => { if (seen.has(r.key)) return false; seen.add(r.key); return true; }).slice(0, 7);
+            }
+
+            // ---------- Context menu ----------
+            function hideMenu() { if (menuEl) menuEl.classList.add('hidden'); }
+            function ensureEls() {
+                const frame = document.getElementById('map').parentNode;
+                if (!menuEl) {
+                    menuEl = document.createElement('div'); menuEl.className = 'ctx-menu hidden'; frame.appendChild(menuEl);
+                    document.addEventListener('mousedown', e => { if (menuEl && !menuEl.contains(e.target)) hideMenu(); }, true);
+                    document.addEventListener('keydown', e => { if (e.key === 'Escape') { hideMenu(); } });
+                }
+                if (!panelEl) { panelEl = document.createElement('div'); panelEl.className = 'tt-panel hidden'; frame.appendChild(panelEl); }
+                if (!ttLayer) ttLayer = L.layerGroup().addTo(map);
+            }
+            async function openMenu(e) {
+                ensureEls();
+                const frame = document.getElementById('map').parentNode, fr = frame.getBoundingClientRect(), mr = document.getElementById('map').getBoundingClientRect();
+                const cp = e.containerPoint, x = cp.x + (mr.left - fr.left), y = cp.y + (mr.top - fr.top);
+                const lat = e.latlng.lat, lng = wrapLng(e.latlng.lng);
+                const org = currentOrigin();
+                menuEl.innerHTML = `<div class="ctx-head"><div class="font-display font-bold text-sm" id="ctx-name">Locating…</div><div class="text-[11px] text-gray-400" id="ctx-sub">${lat.toFixed(4)}, ${lng.toFixed(4)}</div></div>
+                    <button class="ctx-item" data-a="go"><span class="ic">${ICON.go}</span><span>Travel to here<span class="block text-[10px] text-gray-400 font-normal">Flights &amp; options from ${escapeHtml(org ? org.label : 'Cape Town')}</span></span></button>
+                    <button class="ctx-item" data-a="stop"><span class="ic">${ICON.stop}</span>Add as Trip Builder stop</button>
+                    <button class="ctx-item" data-a="site"><span class="ic">${ICON.pin}</span>Add to Sites to Visit</button>
+                    <button class="ctx-item" data-a="explore"><span class="ic">${ICON.explore}</span>Open in Route Explorer</button>
+                    <button class="ctx-item" data-a="copy"><span class="ic">${ICON.copy}</span>Copy coordinates</button>`;
+                menuEl.classList.remove('hidden');
+                const w = menuEl.offsetWidth, h = menuEl.offsetHeight;
+                menuEl.style.left = Math.max(6, Math.min(x, fr.width - w - 6)) + 'px';
+                menuEl.style.top = Math.max(6, Math.min(y, fr.height - h - 6)) + 'px';
+                const token = ctxPlace = { pending: true };
+                const placeP = describePoint(e.latlng);
+                menuEl.querySelectorAll('.ctx-item').forEach(b => b.onclick = async () => {
+                    hideMenu(); const P = await placeP; const act = b.dataset.a;
+                    if (act === 'go') travelTo(P);
+                    else if (act === 'copy') { try { await navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`); showMessage('Coordinates copied'); } catch (err) { showMessage(`${lat.toFixed(6)}, ${lng.toFixed(6)}`); } }
+                    else if (act === 'site') addSite(P);
+                    else if (act === 'stop') { switchPage('planner-page'); setTimeout(() => window.tripAddFromRoute && tripAddFromRoute(null, { name: P.short === 'Pin' ? P.name : P.short, lat: P.lat, lng: P.lng, iata: P.iata || null }, null), 150); }
+                    else if (act === 'explore') explore(P);
+                });
+                const P = await placeP; if (ctxPlace !== token) return;
+                const n = document.getElementById('ctx-name'), s = document.getElementById('ctx-sub');
+                if (n) n.textContent = P.name; if (s) s.textContent = [P.country ? displayName(P.country) : '', P.near, `${lat.toFixed(4)}, ${lng.toFixed(4)}`].filter(Boolean).join(' · ');
+            }
+            function addSite(P) {
+                const nm = P.short === 'Pin' ? P.name : P.short;
+                if (plannerState.sitesToVisit.some(s => s.name === nm && s.country === P.country)) { showMessage(`${nm} is already in Sites to Visit.`, 'error'); return; }
+                plannerState.sitesToVisit.push({ name: nm, country: P.country || '', type: 'Other', description: P.near || '', url: '', visitYear: '', pinned: false, starred: false, lat: P.lat, lng: P.lng, geo: 'manual' });
+                savePlannerState(); renderSitesPageAndMap(); showMessage(`${nm} added to Sites to Visit`);
+            }
+            function explore(P) {
+                const org = currentOrigin();
+                document.getElementById('route-from').value = org ? (org.place.iata && org.key !== 'home' ? org.place.iata : org.place.name) : 'Cape Town';
+                document.getElementById('route-to').value = P.exact ? (P.iata || P.short) : `${P.lat.toFixed(5)}, ${P.lng.toFixed(5)}`;
+                switchPage('planner-page');
+                setTimeout(() => { const d = document.getElementById('details-routes'); d.open = true; d.scrollIntoView({ behavior: 'smooth' }); findRoutes(); }, 150);
+            }
+
+            // ---------- Travel to here ----------
+            async function travelTo(P) {
+                ensureEls();
+                const org = currentOrigin(); if (!org) return;
+                const A = org.place, B = { name: P.short === 'Pin' ? P.name : P.short, short: P.short === 'Pin' ? (P.near ? P.name.replace(/^Pin /, '') : 'your pin') : P.short, lat: P.lat, lng: P.lng, iata: P.iata || null, country: P.country };
+                ttState = { A, B, P, opts: [], sel: 0 };
+                ttLayer.clearLayers(); removeMovers(mv => mv.tag === 'tt');
+                L.marker([B.lat, B.lng], { icon: L.divIcon({ className: 'mover-icon', iconSize: [0, 0], html: PIN_SVG }), zIndexOffset: 2000, interactive: false }).addTo(ttLayer);
+                panelEl.classList.remove('hidden');
+                panelEl.innerHTML = headerHtml() + `<div class="flex items-center gap-3 text-sm text-gray-400 py-4"><svg class="animate-spin h-5 w-5" style="color:#d9b46a" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>Working out flights &amp; routes…</div>`;
+                wireHeader();
+                const state = ttState;
+                const opts = await travelOptions(A, B);
+                if (ttState !== state) return;
+                state.opts = opts; state.sel = 0;
+                draw(); renderPanel(); fit();
+            }
+            function headerHtml() {
+                const s = ttState, list = origins(), org = currentOrigin();
+                const direct = haversine([s.A.lat, s.A.lng], [s.B.lat, s.B.lng]);
+                return `<div class="flex items-start justify-between gap-2 mb-2">
+                    <div class="min-w-0"><div class="text-[10px] uppercase tracking-[.2em] text-gray-400 font-semibold">Travel to</div>
+                    <div class="font-display font-bold text-lg leading-tight gold-text truncate">${escapeHtml(s.B.name)}</div>
+                    <div class="text-[11px] text-gray-400">${[s.B.country ? displayName(s.B.country) : '', s.P.near, fmtKm(direct) + ' as the crow flies'].filter(Boolean).map(escapeHtml).join(' · ')}</div></div>
+                    <button id="tt-close" class="metal metal-steel w-8 h-8 rounded-full grid place-items-center text-lg leading-none flex-none" title="Close">×</button></div>
+                    <label class="flex items-center gap-2 text-[11px] text-gray-400 mb-3">From
+                    <select id="tt-from" class="custom-select p-1.5 text-xs flex-1">${list.map(o => `<option value="${o.key}" ${org && o.key === org.key ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select></label>`;
+            }
+            function wireHeader() {
+                document.getElementById('tt-close').onclick = closeTravel;
+                document.getElementById('tt-from').onchange = e => { localStorage.setItem('travelToFrom', e.target.value); travelTo(ttState.P); };
+            }
+            function closeTravel() { if (panelEl) panelEl.classList.add('hidden'); if (ttLayer) ttLayer.clearLayers(); removeMovers(mv => mv.tag === 'tt'); ttState = null; }
+            window.closeTravelTo = closeTravel;
+
+            function renderPanel() {
+                const s = ttState; if (!s) return;
+                const greenest = s.opts.length ? [...s.opts].sort((p, q) => p.co2 - q.co2)[0] : null;
+                const body = !s.opts.length
+                    ? `<div class="text-sm text-gray-300 py-2">No flight or road route could be estimated to this spot. Try right-clicking closer to a town.</div>`
+                    : `<div class="space-y-1.5">${s.opts.map((r, i) => {
+                        const m = MODE[r.mode], lbl = hasTrain(r) ? 'Flight + Train' : m.label;
+                        return `<div class="tt-opt ${i === s.sel ? 'sel' : ''}" data-i="${i}" style="--c:${m.color}">
+                            <span class="mode-badge" style="--c:${m.color}">${m.icon}</span>
+                            <div class="flex-1 min-w-0"><div class="text-sm font-semibold leading-snug">${i === 0 ? '★ ' : ''}${escapeHtml(r.title)}</div>
+                            <div class="text-[10px] uppercase tracking-wider mt-0.5" style="color:${m.color}">${lbl}${r === greenest ? ' · lowest CO₂' : ''}</div>
+                            ${i === s.sel ? `<div class="text-[11px] text-gray-400 mt-1 leading-snug">${escapeHtml(r.detail)}</div>
+                            <div class="flex items-center gap-2 mt-2 flex-wrap text-[11px]"><span class="text-gray-400">${fmtKm(r.km)} · ~${r.co2} kg CO₂</span>
+                            <a href="${r.book}" target="_blank" rel="noopener" class="ml-auto text-purple-400 hover:underline font-semibold">${r.mode === 'car' ? 'Directions' : 'Search & book'} ↗</a>
+                            <button class="tt-trip gradient-btn text-[11px] px-2.5 py-1 rounded-lg" data-i="${i}">+ Trip</button></div>` : ''}</div>
+                            <div class="text-sm font-bold whitespace-nowrap" style="color:${m.color}">${fmtH(r.h)}</div></div>`;
+                    }).join('')}</div>
+                    <div class="text-[10px] text-gray-500 mt-2">Door-to-door estimates incl. airport transfers, check-in and layovers — typical connections, not live schedules. Click an option to show it on the map.</div>`;
+                panelEl.innerHTML = headerHtml() + body;
+                wireHeader();
+                panelEl.querySelectorAll('.tt-opt').forEach(el => el.onclick = e => { if (e.target.closest('a,button')) return; s.sel = +el.dataset.i; draw(); renderPanel(); });
+                panelEl.querySelectorAll('.tt-trip').forEach(b => b.onclick = () => {
+                    const r = s.opts[+b.dataset.i];
+                    switchPage('planner-page');
+                    setTimeout(() => window.tripAddFromRoute && tripAddFromRoute(s.A, { name: s.B.name, lat: s.B.lat, lng: s.B.lng, iata: s.B.iata }, r), 150);
+                });
+            }
+            function draw() {
+                const s = ttState; if (!s) return;
+                ttLayer.eachLayer(l => { if (!(l instanceof L.Marker)) ttLayer.removeLayer(l); });
+                removeMovers(mv => mv.tag === 'tt');
+                s.opts.forEach((r, i) => {
+                    if (i === s.sel) return;
+                    (r.segs || [{ mode: r.mode, pts: r.pts }]).forEach(sg => {
+                        const ln = L.polyline(sg.pts, { color: MODE[sg.mode].color, weight: 1.6, opacity: 0.28, dashArray: sg.mode === 'flight' ? '5 7' : null });
+                        ln.on('click', () => { s.sel = i; draw(); renderPanel(); }); ttLayer.addLayer(ln);
+                    });
+                });
+                const r = s.opts[s.sel]; if (!r) return;
+                const segs = r.segs || [{ mode: r.mode, pts: r.pts }];
+                segs.forEach((sg, k) => {
+                    const c = MODE[sg.mode].color;
+                    ttLayer.addLayer(L.polyline(sg.pts, { color: c, weight: 9, opacity: 0.13, interactive: false }));
+                    ttLayer.addLayer(L.polyline(sg.pts, { color: c, weight: sg.mode === 'flight' ? 2.8 : 3.4, opacity: 0.95, dashArray: sg.mode === 'flight' ? '7 8' : sg.mode === 'bus' ? '2 7' : null, className: sg.mode === 'flight' ? 'route-anim' : '', lineCap: 'round', interactive: false }));
+                    const mv = makeMover(map, sg.pts, sg.mode, Math.max(4000, Math.min(11000, pathLengthKm(sg.pts) / 1.2)), { group: ttLayer, delay: k * 400 }); mv.tag = 'tt';
+                });
+                const lab = (ll, txt, dir, color) => ttLayer.addLayer(L.tooltip({ permanent: true, direction: dir, className: 'route-label', offset: [dir === 'right' ? 12 : dir === 'left' ? -12 : 0, 0], interactive: false }).setLatLng(ll).setContent(`<span style="--c:${color}">${txt}</span>`));
+                if (r.path) {
+                    r.path.forEach((a, i) => { const role = i === 0 ? 'Depart' : i === r.path.length - 1 ? 'Arrive' : 'Connect'; lab([a.lat, a.lng], `${role} · ${a.iata} ${escapeHtml(a.city)}`, i === r.path.length - 1 ? 'right' : 'left', MODE.flight.color); });
+                } else {
+                    const pts = segs[Math.floor(segs.length / 2)].pts; lab(pts[Math.floor(pts.length / 2)], `${hasTrain(r) ? 'Flight + Train' : MODE[r.mode].label} · ${fmtH(r.h)}`, 'center', MODE[r.mode].color);
+                }
+                lab([s.B.lat, s.B.lng], `${escapeHtml(s.B.name)} · ${fmtH(r.h)}`, 'top', '#f7e3b5');
+            }
+            function fit() {
+                const s = ttState; if (!s || !s.opts.length) { map.flyTo([s.B.lat, s.B.lng], Math.max(map.getZoom(), 6)); return; }
+                const r = s.opts[s.sel]; const b = L.latLngBounds(r.pts.concat([[s.A.lat, s.A.lng], [s.B.lat, s.B.lng]]));
+                const panelW = panelEl && !panelEl.classList.contains('hidden') ? Math.min(panelEl.offsetWidth + 70, map.getSize().x / 2) : 50;
+                map.flyToBounds(b, { paddingTopLeft: [panelW, 60], paddingBottomRight: [130, 50], maxZoom: 9, duration: 1.1 });
+            }
+
+            // ---------- Wiring ----------
+            function wire() {
+                if (typeof map === 'undefined' || !map || !map.on) return setTimeout(wire, 300);
+                map.on('contextmenu', e => { try { openMenu(e); } catch (err) { console.error(err); } });
+                map.on('movestart zoomstart', hideMenu);
+            }
+            wire();
+            window.travelToLatLng = (lat, lng) => describePoint(L.latLng(lat, lng)).then(travelTo);
         })();
     </script>
 </body>
