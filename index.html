@@ -598,6 +598,7 @@
                             <div class="panel-title mb-2">Map layers</div>
                             <label class="switch"><span>Place labels</span><input type="checkbox" id="toggle-labels" checked><span class="track"></span></label>
                             <label class="switch"><span>SA visa requirements</span><input type="checkbox" id="toggle-visa-layer"><span class="track"></span></label>
+                            <label class="switch"><span>Schengen Area</span><input type="checkbox" id="toggle-schengen"><span class="track"></span></label>
                             <label class="switch"><span>My sites to visit</span><input type="checkbox" id="toggle-sites" checked><span class="track"></span></label>
                             <label class="switch"><span>Towns &amp; cities</span><input type="checkbox" id="toggle-towns"><span class="track"></span></label>
                             <div id="loading-towns-indicator" class="text-xs -mt-1 mb-1 hidden" style="color:#d9b46a">Loading 7,300 towns…</div>
@@ -989,6 +990,7 @@ Fly to Bali for a week, then back home."></textarea>
                         <button class="chip gradient-btn secondary" data-access="VOA">On arrival</button>
                         <button class="chip gradient-btn secondary" data-access="ETA">ETA</button>
                         <button class="chip gradient-btn secondary" data-access="EV">eVisa</button>
+                        <button class="chip gradient-btn secondary" data-access="SCH">★ Schengen</button>
                         <button class="chip gradient-btn secondary" data-access="VR">Visa required</button>
                         <button class="chip gradient-btn secondary" data-access="all">All countries</button>
                     </div>
@@ -1279,6 +1281,11 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
 *Palau|PW|OC|VOA|30 days|USD|Feb–Apr|Free visa on arrival.
 *Samoa|WS|OC|VOA|90 days|WST|May–Oct|Entry permit on arrival.
 *Tuvalu|TV|OC|VOA|1 month|AUD|May–Oct|Visa on arrival.
+*Liechtenstein|LI|EU|VR||CHF|May–Sep|Schengen visa (via Switzerland/Austria).
+*Monaco|MC|EU|VR||EUR|Apr–Jun, Sep–Oct|No own visa — enter via France on a Schengen visa.
+*San Marino|SM|EU|VR||EUR|May–Jun, Sep|No own visa — enter via Italy on a Schengen visa.
+*Vatican City|VA|EU|VR||EUR|Mar–May, Sep–Nov|No own visa — enter via Rome on a Schengen visa.
+*Andorra|AD|EU|VR||EUR|Jun–Sep; Dec–Mar for skiing|No own visa — reached only via Spain or France, so a multiple-entry Schengen visa is needed.
 *Cook Islands|CK|OC|VF|31 days|NZD|May–Oct|Visa-free.
 *Niue|NU|OC|VF|30 days|NZD|May–Oct|Visa-free.
 `;
@@ -1290,6 +1297,7 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
             ETA:  { label: 'ETA — online, no visa',short: 'ETA',           color: '#38bdf8' },
             EV:   { label: 'eVisa — apply online', short: 'eVisa',         color: '#f59e0b' },
             VR:   { label: 'Visa required',        short: 'Visa required', color: '#ef4444' },
+            SCH:  { label: 'Schengen visa required', short: 'Schengen visa', color: '#3b6cff' },
             PM:   { label: 'Special permit',       short: 'Permit',        color: '#a78bfa' },
             HOME: { label: 'Home country',         short: 'Home',          color: '#d9b46a' }
         };
@@ -1307,6 +1315,28 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
             const [name, iso, region, status, stay, currency, best, note] = (offMap ? line.slice(1) : line).split('|');
             COUNTRY_DB[name] = { name, iso, region: REGION_NAMES[region] || region, status, stay, currency, best, note, offMap };
         });
+
+        // ---------- Schengen ----------
+        // 29 members: one Schengen (C) visa covers them all — max 90 days in any 180-day period.
+        const SCHENGEN_MEMBERS = ['Austria', 'Belgium', 'Bulgaria', 'Croatia', 'Czech Republic', 'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece', 'Hungary', 'Iceland', 'Italy', 'Latvia', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Malta', 'Netherlands', 'Norway', 'Poland', 'Portugal', 'Romania', 'Slovakia', 'Slovenia', 'Spain', 'Sweden', 'Switzerland'];
+        const SCHENGEN_VIA = ['Monaco', 'San Marino', 'Vatican City', 'Andorra'];                 // no own visa — entered through Schengen
+        const SCHENGEN_ACCEPTED = ['Albania', 'Bosnia and Herzegovina', 'Montenegro', 'Macedonia', 'Republic of Serbia', 'Moldova', 'Kosovo']; // a valid Schengen visa gets you in
+        const SCHENGEN_SEPARATE = ['Cyprus', 'Ireland', 'United Kingdom'];                           // European, but NOT covered by Schengen
+        SCHENGEN_MEMBERS.concat(SCHENGEN_VIA).forEach(n => { const c = COUNTRY_DB[n]; if (c) { c.status = 'SCH'; c.schengen = SCHENGEN_VIA.includes(n) ? 'via' : 'member'; } });
+        SCHENGEN_ACCEPTED.forEach(n => { if (COUNTRY_DB[n]) COUNTRY_DB[n].schengen = 'accepted'; });
+        SCHENGEN_SEPARATE.forEach(n => { if (COUNTRY_DB[n]) COUNTRY_DB[n].schengen = 'separate'; });
+        const SCHENGEN_TEXT = {
+            member: ['#3b6cff', 'Schengen Area member', 'One Schengen visa covers all 29 Schengen countries. Max 90 days in any 180-day period across the whole area. Apply at the embassy/VFS of your main destination (or first entry if equal).'],
+            via: ['#3b6cff', 'Entered via the Schengen Area', 'No visa of its own — you arrive through a Schengen country, so you need a Schengen visa (multiple-entry if you will cross back and forth).'],
+            accepted: ['#60a5fa', 'Valid Schengen visa accepted', 'Not in Schengen, but a valid Schengen visa (often multiple-entry and already used once) lets you enter without a separate visa — check the conditions above.'],
+            separate: ['#f87171', 'NOT covered by Schengen', 'European, but outside Schengen — a Schengen visa does not get you in. You need this country’s own visa.']
+        };
+        function schengenChip(name, full) {
+            const k = (COUNTRY_DB[name] || {}).schengen; if (!k) return '';
+            const [c, t, d] = SCHENGEN_TEXT[k];
+            return full ? `<div class="mt-2 rounded-lg px-2.5 py-2 text-xs" style="border:1px solid ${c}66;background:${c}14"><div class="font-semibold flex items-center gap-1.5" style="color:${c}"><span style="font-size:13px">${k === 'separate' ? '✕' : k === 'accepted' ? '✓' : '★'}</span>${t}</div><div class="text-gray-400 mt-0.5 leading-relaxed">${d}</div></div>`
+                : `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap" style="color:${c};border:1px solid ${c}66;background:${c}14">${k === 'member' || k === 'via' ? '★ Schengen' : k === 'accepted' ? 'Schengen visa OK' : 'Not Schengen'}</span>`;
+        }
 
         function getCountryInfo(name) {
             return COUNTRY_DB[name] || { name, iso: '', region: '', status: 'VR', stay: '', currency: '', best: 'Spring and autumn are usually the most comfortable seasons.', note: 'Treat as visa required until confirmed with the embassy.', offMap: false };
@@ -1374,7 +1404,10 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
             if (visaLayerOn) {
                 const info = getCountryInfo(name);
                 const color = (VISA_META[info.status] || VISA_META.VR).color;
-                return { fillColor: color, fillOpacity: map && map.getZoom() >= 6 ? 0.25 : 0.55, weight: 0.7, color: '#0b1220', opacity: 0.9 };
+                const st = { fillColor: color, fillOpacity: map && map.getZoom() >= 6 ? 0.25 : 0.55, weight: 0.7, color: '#0b1220', opacity: 0.9 };
+                if (info.schengen === 'member') Object.assign(st, { weight: 1.4, color: '#a9bcff', opacity: 0.95, fillOpacity: map && map.getZoom() >= 6 ? 0.25 : 0.62 });
+                if (info.schengen === 'accepted') Object.assign(st, { weight: 2, color: '#60a5fa', opacity: 1, dashArray: '4 3' });
+                return st;
             }
             const cat = countryCategories[name];
             const zoomedIn = map && map.getZoom() >= 6;   // let the map detail show through when zoomed in
@@ -1395,7 +1428,8 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
         function renderLegend() {
             const el = document.getElementById('legend-list');
             if (visaLayerOn) {
-                el.innerHTML = ['VF', 'VOA', 'ETA', 'EV', 'VR', 'PM'].map(k => `<li class="flex items-center gap-2.5"><span class="legend-swatch" style="--c:${VISA_META[k].color}"></span>${VISA_META[k].label}</li>`).join('');
+                el.innerHTML = ['VF', 'VOA', 'ETA', 'EV', 'SCH', 'VR', 'PM'].map(k => `<li class="flex items-center gap-2.5"><span class="legend-swatch" style="--c:${VISA_META[k].color}"></span>${k === 'SCH' ? 'Schengen visa (one visa, 29 countries)' : VISA_META[k].label}</li>`).join('')
+                    + `<li class="flex items-center gap-2.5"><span class="legend-swatch" style="--c:#ef4444;background:transparent;border:2px dashed #60a5fa"></span>Valid Schengen visa accepted</li>`;
             } else {
                 el.innerHTML = Object.keys(CATEGORY_LABELS).map(k => `<li class="flex items-center gap-2.5"><span class="legend-swatch" style="--c:${CATEGORY_COLORS[k]}"></span>${CATEGORY_LABELS[k]}</li>`).join('')
                     + `<li class="flex items-center gap-2.5"><span class="legend-swatch" style="--c:#f7e3b5;background:transparent;border:2px solid #f7e3b5"></span>Selected</li>`;
@@ -1404,7 +1438,7 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
         function tooltipHtml(name) {
             const info = getCountryInfo(name);
             const cat = countryCategories[name];
-            return `<div class="flex items-center gap-2">${flagImg(name)}<div><div class="font-semibold text-[13px]">${escapeHtml(displayName(name))}</div><div class="flex items-center gap-1.5 mt-1">${visaBadge(info.status)}${cat ? `<span class="text-[11px]" style="color:${CATEGORY_COLORS[cat]}">● ${CATEGORY_LABELS[cat]}</span>` : ''}</div></div></div>`;
+            return `<div class="flex items-center gap-2">${flagImg(name)}<div><div class="font-semibold text-[13px]">${escapeHtml(displayName(name))}</div><div class="flex items-center gap-1.5 mt-1">${visaBadge(info.status)}${info.schengen && info.schengen !== 'member' ? schengenChip(name) : ''}${cat ? `<span class="text-[11px]" style="color:${CATEGORY_COLORS[cat]}">● ${CATEGORY_LABELS[cat]}</span>` : ''}</div></div></div>`;
         }
 
         // --- Details State Management ---
@@ -1517,9 +1551,10 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
             const visaEl = document.getElementById('info-visa-sa'), bestTimeEl = document.getElementById('info-best-time'), exchangeRateEl = document.getElementById('info-exchange-rate');
             const meta = VISA_META[info.status] || VISA_META.VR;
             visaEl.innerHTML = `
-                <div class="flex items-center justify-between gap-2 flex-wrap">${visaBadge(info.status)}<span class="text-sm font-semibold" style="color:${meta.color}">${info.stay ? escapeHtml(info.stay) : (info.status === 'VR' || info.status === 'EV' ? 'Stay per visa issued' : '')}</span></div>
+                <div class="flex items-center justify-between gap-2 flex-wrap">${visaBadge(info.status)}<span class="text-sm font-semibold" style="color:${meta.color}">${info.stay ? escapeHtml(info.stay) : (info.status === 'SCH' ? '90 days in 180' : info.status === 'VR' || info.status === 'EV' ? 'Stay per visa issued' : '')}</span></div>
                 <div class="text-sm text-gray-200 mt-2 font-medium">${meta.label}</div>
                 <p class="text-xs text-gray-400 mt-1 leading-relaxed">${escapeHtml(info.note)}</p>
+                ${schengenChip(countryName, true)}
                 ${info.status !== 'HOME' ? `<a href="${getVisaUrl(countryName)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-purple-400 hover:underline mt-2">Verify current requirements ↗</a>` : ''}`;
             bestTimeEl.textContent = info.best;
             exchangeRateEl.textContent = info.currency === 'ZAR' ? 'Rand (home)' : 'Loading…';
@@ -2294,7 +2329,7 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
 
             function renderVisaCountries() {
                 const grid = document.getElementById('visaCountriesGrid');
-                const accessMatch = c => currentAccess === 'all' ? true : currentAccess === 'easy' ? EASY_ACCESS.includes(c.status) : c.status === currentAccess;
+                const accessMatch = c => currentAccess === 'all' ? true : currentAccess === 'easy' ? EASY_ACCESS.includes(c.status) : currentAccess === 'SCH' ? !!c.schengen && c.schengen !== 'separate' : currentAccess === 'VR' ? (c.status === 'VR' || c.status === 'SCH') : c.status === currentAccess;
                 const filtered = allCountries
                     .filter(c => accessMatch(c) && (currentRegion === 'all' || c.region === currentRegion) && (displayName(c.name) + ' ' + c.name).toLowerCase().includes(searchTerm.toLowerCase()))
                     .sort((a, b) => displayName(a.name).localeCompare(displayName(b.name)));
@@ -2312,7 +2347,7 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
                     <div class="content-card visa-card" style="box-shadow: inset 0 3px 0 -1px ${meta.color}55, 0 24px 60px -28px rgba(0,0,0,.85);">
                         <div class="flex items-start justify-between gap-3">
                             ${flagImg(c.name, 'flag flag-xl')}
-                            <div class="flex flex-col items-end gap-1.5">${visaBadge(c.status)}${cat ? `<span class="text-[11px] font-semibold" style="color:${CATEGORY_COLORS[cat]}">● ${CATEGORY_LABELS[cat]}</span>` : ''}</div>
+                            <div class="flex flex-col items-end gap-1.5">${visaBadge(c.status)}${c.schengen && c.schengen !== 'member' && c.schengen !== 'via' ? schengenChip(c.name) : ''}${cat ? `<span class="text-[11px] font-semibold" style="color:${CATEGORY_COLORS[cat]}">● ${CATEGORY_LABELS[cat]}</span>` : ''}</div>
                         </div>
                         <div>
                             <div class="font-display text-lg font-bold metal-text leading-tight">${escapeHtml(displayName(c.name))}</div>
@@ -4364,7 +4399,7 @@ Caribbean|JM|18.00|-72.00|5`;
         // =====================================================================
         (function () {
             // ---------- Reference data ----------
-            const SCHENGEN = 'Austria,Belgium,Bulgaria,Croatia,Czech Republic,Denmark,Estonia,Finland,France,Germany,Greece,Hungary,Iceland,Italy,Latvia,Lithuania,Luxembourg,Malta,Netherlands,Norway,Poland,Portugal,Romania,Slovakia,Slovenia,Spain,Sweden,Switzerland'.split(',');
+            const SCHENGEN = 'Austria,Belgium,Bulgaria,Croatia,Czech Republic,Denmark,Estonia,Finland,France,Germany,Greece,Hungary,Iceland,Italy,Latvia,Liechtenstein,Lithuania,Luxembourg,Malta,Netherlands,Norway,Poland,Portugal,Romania,Slovakia,Slovenia,Spain,Sweden,Switzerland'.split(',');
             // Countries for which South Africa requires a yellow fever certificate on (re-)entry (southafrica.net / NDoH list)
             const YF_SA = 'Angola,Argentina,Benin,Bolivia,Brazil,Burkina Faso,Burundi,Cameroon,Central African Republic,Chad,Colombia,Guinea Bissau,Republic of the Congo,Ivory Coast,Democratic Republic of the Congo,Ecuador,Equatorial Guinea,Ethiopia,French Guiana,Gabon,Gambia,Ghana,Guinea,Guyana,Kenya,Liberia,Mali,Mauritania,Niger,Nigeria,Panama,Paraguay,Peru,Rwanda,Senegal,Sierra Leone,Sudan,Suriname,Togo,Trinidad and Tobago,Uganda,Venezuela'.split(',');
             const YF_ENTRY = 'Angola,Burundi,Cameroon,Central African Republic,Republic of the Congo,Democratic Republic of the Congo,Ivory Coast,Gabon,Ghana,Guinea Bissau,Liberia,Mali,Niger,Sierra Leone,South Sudan,Togo,Burkina Faso,French Guiana,Uganda,Benin,Equatorial Guinea'.split(',');
@@ -4742,7 +4777,7 @@ Caribbean|JM|18.00|-72.00|5`;
                 foreign.forEach(c => {
                     const info = getCountryInfo(c), e = byCountry.get(c), lim = parseStayDays(info.stay);
                     if (!SCHENGEN.includes(c)) {
-                        const sev = info.status === 'VR' ? 'crit' : info.status === 'EV' || info.status === 'ETA' ? 'high' : 'ok';
+                        const sev = info.status === 'VR' || info.status === 'SCH' ? 'crit' : info.status === 'EV' || info.status === 'ETA' ? 'high' : 'ok';
                         add(sev, `${displayName(c)}: ${VISA_META[info.status].label}${info.stay ? ` (${info.stay})` : ''}`, `${escapeHtml(info.note)}${lim && e.days > lim ? ` <b>Your ${e.days}-day stay is longer than the ${lim} days allowed.</b>` : ''}`, c);
                     }
                     if (YF_ENTRY.includes(c)) add('crit', `${displayName(c)}: yellow fever certificate likely required on arrival`, 'Get vaccinated at an approved travel clinic at least 10 days before departure and carry the yellow card.', c);
@@ -5738,6 +5773,54 @@ Caribbean|JM|18.00|-72.00|5`;
             }
             wire();
             window.travelToLatLng = (lat, lng) => describePoint(L.latLng(lat, lng)).then(travelTo);
+        })();
+    </script>
+    <style>
+        .sch-label { background:none; border:none; }
+        .sch-label div { transform:translate(-50%,-50%); white-space:nowrap; text-align:center; pointer-events:none; font: 800 12px/1.15 'Sora',sans-serif; letter-spacing:.22em; color:#c7d4ff; text-shadow:0 0 10px rgba(59,108,255,.9), 0 2px 4px #000; }
+        .sch-label div small { display:block; font: 600 10px/1.3 'Inter',sans-serif; letter-spacing:.04em; color:#9fb2ff; }
+        .sch-star { width:16px; height:16px; transform:translate(-8px,-8px); border-radius:50%; display:grid; place-items:center; font-size:10px; color:#ffd84a; background:#1d3fb8; border:1.5px solid #a9bcff; box-shadow:0 0 10px rgba(59,108,255,.9); }
+    </style>
+    <script>
+        // =====================================================================
+        // SCHENGEN AREA LAYER — members highlighted in EU blue, plus microstates
+        // =====================================================================
+        (function () {
+            let layer = null;
+            const MICRO = { 'Liechtenstein': [47.16, 9.55], 'Monaco': [43.738, 7.424], 'San Marino': [43.94, 12.45], 'Vatican City': [41.903, 12.453], 'Andorra': [42.51, 1.52], 'Malta': [35.9, 14.45], 'Luxembourg': [49.61, 6.13] };
+            function build() {
+                layer = L.layerGroup();
+                const gj = window.WORLD_GEOJSON; const have = new Set();
+                if (gj) {
+                    const feats = gj.features.filter(f => { const k = (COUNTRY_DB[f.properties.name] || {}).schengen; if (k) have.add(f.properties.name); return k && k !== 'separate'; });
+                    L.geoJSON({ type: 'FeatureCollection', features: feats }, {
+                        interactive: false,
+                        style: f => {
+                            const k = COUNTRY_DB[f.properties.name].schengen;
+                            return k === 'accepted' ? { color: '#60a5fa', weight: 1.8, dashArray: '5 4', fillColor: '#60a5fa', fillOpacity: 0.08 }
+                                : { color: '#a9bcff', weight: 1.6, fillColor: '#3b6cff', fillOpacity: 0.42 };
+                        }
+                    }).addTo(layer);
+                }
+                // Members / via-states too small for the country outlines get a star marker
+                Object.entries(MICRO).forEach(([n, ll]) => {
+                    const k = (COUNTRY_DB[n] || {}).schengen; if (!k) return;
+                    L.marker(ll, { interactive: true, icon: L.divIcon({ className: 'mover-icon', iconSize: [0, 0], html: '<div class="sch-star">★</div>' }) })
+                        .bindTooltip(`<b>${escapeHtml(displayName(n))}</b><br>${k === 'via' ? 'No own visa — enter on a Schengen visa' : 'Schengen member'}`, { className: 'country-tip', direction: 'top', offset: [0, -8] }).addTo(layer);
+                });
+                L.marker([54.5, 14], { interactive: false, icon: L.divIcon({ className: 'sch-label', iconSize: [0, 0], html: '<div>SCHENGEN AREA<small>One visa · 29 countries · 90 days in any 180</small></div>' }) }).addTo(layer);
+            }
+            function set(on) {
+                localStorage.setItem('travelSchengen', on ? 'on' : 'off');
+                if (on) { if (!layer) build(); layer.addTo(map); } else if (layer) map.removeLayer(layer);
+            }
+            function wire() {
+                const t = document.getElementById('toggle-schengen');
+                if (!t || typeof map === 'undefined' || !map || !window.WORLD_GEOJSON) return setTimeout(wire, 400);
+                t.addEventListener('change', () => { set(t.checked); if (t.checked && map.getZoom() < 3.5) map.flyTo([50, 12], 3.5, { duration: 1 }); });
+                if (localStorage.getItem('travelSchengen') === 'on') { t.checked = true; set(true); }
+            }
+            wire();
         })();
     </script>
 </body>
