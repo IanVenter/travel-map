@@ -2700,35 +2700,37 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
         .leaflet-popup-content a { color:#d9b46a; }
         .leaflet-container a.leaflet-popup-close-button { color:#aab2c2; }
         .apt { position:relative; display:flex; align-items:center; gap:5px; white-space:nowrap; }
-        .apt i { flex-shrink:0; border-radius:50%; }
+        /* Airport signs: rounded square with a plane, colour + size by importance */
+        .apt i { flex-shrink:0; display:grid; place-items:center; border-radius:5px; color:#0b1020; }
+        .apt i svg { width:72%; height:72%; transform: rotate(45deg); }
         .apt b { font: 700 10px/1 'Sora',sans-serif; color:#e6e9f0; letter-spacing:.06em; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
         .apt b em { font-style:normal; font-weight:600; font-family:'Inter',sans-serif; letter-spacing:0; opacity:.85; margin-left:4px; }
         /* Tier 1 — global mega-hub (gold, large) */
-        .apt.t1 { transform:translate(-8px,-8px); }
-        .apt.t1 i { width:16px; height:16px; background: radial-gradient(circle at 35% 30%, #fff6dc, #e8c374 45%, #9a6d22); box-shadow: 0 0 0 2px rgba(11,16,32,.9), 0 0 0 3.5px #f2d48f, 0 0 16px rgba(247,227,181,.95); }
+        .apt.t1 { transform:translate(-11px,-11px); }
+        .apt.t1 i { width:22px; height:22px; border-radius:6px; background: linear-gradient(150deg, #fff6dc, #e8c374 45%, #a87a2a); box-shadow: 0 0 0 1.5px #0b1020, 0 0 0 3px #f7e3b5, 0 0 16px rgba(247,227,181,.9); }
         .apt.t1 b { font-size:12px; color:#fbe7b6; }
-        /* Tier 2 — major international (platinum, medium) */
-        .apt.t2 { transform:translate(-6px,-6px); }
-        .apt.t2 i { width:12px; height:12px; background: radial-gradient(circle at 35% 30%, #ffffff, #c9d3e6 50%, #6b7891); box-shadow: 0 0 0 1.5px rgba(11,16,32,.9), 0 0 0 2.8px #dfe6f3, 0 0 10px rgba(210,222,245,.8); }
+        /* Tier 2 — major international (platinum) */
+        .apt.t2 { transform:translate(-9px,-9px); }
+        .apt.t2 i { width:18px; height:18px; background: linear-gradient(150deg, #ffffff, #cfd8ea 50%, #7b879f); box-shadow: 0 0 0 1.5px #0b1020, 0 0 0 2.6px #e6ecf7, 0 0 10px rgba(210,222,245,.7); }
         .apt.t2 b { font-size:11px; color:#eef2fa; }
         /* Tier 3 — national gateway (sapphire) */
-        .apt.t3 { transform:translate(-5px,-5px); }
-        .apt.t3 i { width:9px; height:9px; background: radial-gradient(circle at 35% 30%, #e0f2fe, #38bdf8 55%, #0e6aa0); box-shadow: 0 0 0 1.5px rgba(11,16,32,.9), 0 0 7px rgba(56,189,248,.8); }
+        .apt.t3 { transform:translate(-7.5px,-7.5px); }
+        .apt.t3 i { width:15px; height:15px; border-radius:4px; color:#fff; background: linear-gradient(150deg, #7dd3fc, #1d8fd8 55%, #0b4f86); box-shadow: 0 0 0 1.3px #0b1020, 0 0 0 2.3px #9bdcfb, 0 0 8px rgba(56,189,248,.7); }
         .apt.t3 b { color:#bde6fb; }
         /* Tier 4 — regional (bronze, small) */
-        .apt.t4 { transform:translate(-3.5px,-3.5px); }
-        .apt.t4 i { width:7px; height:7px; background: radial-gradient(circle at 35% 30%, #f5dcc4, #c08457 55%, #7a4a26); box-shadow: 0 0 0 1px rgba(11,16,32,.9), 0 0 5px rgba(192,132,87,.7); }
+        .apt.t4 { transform:translate(-6px,-6px); }
+        .apt.t4 i { width:12px; height:12px; border-radius:3.5px; color:#fff7ee; background: linear-gradient(150deg, #e9b98d, #b0713f 55%, #6e4220); box-shadow: 0 0 0 1px #0b1020, 0 0 0 1.8px #d9a77b, 0 0 5px rgba(192,132,87,.6); }
         .apt.t4 b { font-size:9px; color:#e7cbb2; }
-        .apt.origin i { width:14px; height:14px; background: radial-gradient(circle at 35% 30%, #d1fae5, #22c55e 55%, #15803d) !important; box-shadow: 0 0 0 2px rgba(11,16,32,.9), 0 0 14px rgba(34,197,94,.95) !important; }
+        .apt.origin i { color:#fff !important; background: linear-gradient(150deg, #bbf7d0, #22c55e 55%, #15803d) !important; box-shadow: 0 0 0 1.5px #0b1020, 0 0 0 3px #86efac, 0 0 14px rgba(34,197,94,.9) !important; }
         /* Labels by zoom: hubs always; smaller airports appear as you zoom in */
         #map.az-0 .apt.t2 b em, #map.az-0 .apt.t3 b, #map.az-0 .apt.t4 b, #map.az-0 .apt.t1 b em { display:none; }
         #map.az-1 .apt.t3 b em, #map.az-1 .apt.t4 b { display:none; }
         #map.az-2 .apt.t4 b em { display:none; }
-        #map.az-0 .apt.t4 i { width:5px; height:5px; }
+        #map.az-0 .apt.t4 i { width:9px; height:9px; } #map.az-0 .apt.t4 { transform:translate(-4.5px,-4.5px); }
         .apt-legend { position:absolute; right:14px; bottom:30px; z-index:900; padding:9px 12px; border-radius:12px; font-size:11px; color:#d7dce6; pointer-events:none;
             background: linear-gradient(160deg, rgba(22,29,45,.92), rgba(8,12,20,.94)) padding-box, linear-gradient(135deg, rgba(255,255,255,.28), rgba(255,255,255,.04) 45%, rgba(217,180,106,.45)) border-box; border:1px solid transparent; }
         .apt-legend .r { display:flex; align-items:center; gap:8px; margin-top:4px; }
-        .apt-legend .r .apt { transform:none !important; width:18px; justify-content:center; }
+        .apt-legend .r .apt { transform:none !important; width:24px; justify-content:center; }
         .route-anim { stroke-dasharray: 6 8; animation: route-dash 1.6s linear infinite; }
         @keyframes route-dash { to { stroke-dashoffset: -28; } }
         .mover-icon { background:none; border:none; }
@@ -3306,6 +3308,7 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
         const APT_T1 = 'LHR CDG AMS FRA IST DXB DOH SIN HKG ATL JFK LAX ORD HND ICN PEK PVG CAN DEL BKK SYD MAD'.split(' ');
         const APT_T2 = 'MUC ZRH VIE CPH FCO BCN BER MAN DUB GVA DUS HAM NCE AGP PMI EDI LIS ARN OSL HEL ATH BRU MXP WAW PRG SVO LED AUH JED RUH TLV ADD CAI NBO JNB CPT CMN LOS BOM KUL CGK DPS MNL TPE KIX SGN MEL BNE PER AKL EWR IAD MIA SFO LAS YVR YUL MEX CUN BOG LIM SCL EZE GRU GIG PTY'.split(' ');
         const APT_TIER_NAME = { 1: 'Global mega-hub', 2: 'Major international', 3: 'National gateway', 4: 'Regional airport' };
+        const APT_SIGN = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>';
         function airportTier(a) {
             if (APT_T1.includes(a.iata)) return 1;
             if (APT_T2.includes(a.iata) || a.hub) return 2;
@@ -3322,7 +3325,7 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
             let lg = document.getElementById('apt-legend');
             if (!lg) {
                 lg = document.createElement('div'); lg.id = 'apt-legend'; lg.className = 'apt-legend hidden';
-                lg.innerHTML = '<div class="text-[10px] uppercase tracking-[.18em] text-gray-400 font-semibold">Airports</div>' + [1, 2, 3, 4].map(t => `<div class="r"><span class="apt t${t}"><i></i></span>${APT_TIER_NAME[t]}</div>`).join('') + '<div class="r"><span class="apt origin"><i></i></span>Your departure airport</div>';
+                lg.innerHTML = '<div class="text-[10px] uppercase tracking-[.18em] text-gray-400 font-semibold">Airports</div>' + [1, 2, 3, 4].map(t => `<div class="r"><span class="apt t${t}"><i>${APT_SIGN}</i></span>${APT_TIER_NAME[t]}</div>`).join('') + `<div class="r"><span class="apt t2 origin"><i>${APT_SIGN}</i></span>Your departure airport</div>`;
                 document.getElementById('map').parentNode.appendChild(lg);
             }
             lg.classList.toggle('hidden', !show);
@@ -3331,7 +3334,7 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
             airportLayer = L.layerGroup(); networkLayer = L.layerGroup(); saRouteLayer = L.layerGroup();
             AIRPORTS.forEach(a => {
                 const t = airportTier(a), cls = `t${t}${a.iata === routeOrigin ? ' origin' : ''}`;
-                const mk = L.marker([a.lat, a.lng], { icon: L.divIcon({ className: 'mover-icon', iconSize: [0, 0], html: `<div class="apt ${cls}"><i></i><b>${a.iata}<em>${escapeHtml(a.city)}</em></b></div>` }), zIndexOffset: (5 - t) * 300 + (a.iata === routeOrigin ? 2000 : 0) });
+                const mk = L.marker([a.lat, a.lng], { icon: L.divIcon({ className: 'mover-icon', iconSize: [0, 0], html: `<div class="apt ${cls}"><i>${APT_SIGN}</i><b>${a.iata}<em>${escapeHtml(a.city)}</em></b></div>` }), zIndexOffset: (5 - t) * 300 + (a.iata === routeOrigin ? 2000 : 0) });
                 const direct = SA_DIRECT[routeOrigin]?.includes(a.iata);
                 const tc = ['', '#f2d48f', '#dfe6f3', '#38bdf8', '#c08457'][t];
                 mk.bindTooltip(`<b>${a.iata}</b> · ${escapeHtml(a.city)}, ${escapeHtml(displayName(a.country))}<br><span style="color:${tc}">● ${APT_TIER_NAME[t]}</span>${direct ? `<br><span style="color:#22c55e">Non-stop from ${routeOrigin}</span>` : ''}`, { className: 'country-tip', direction: 'top', offset: [0, -8] });
@@ -4370,6 +4373,43 @@ Caribbean|JM|18.00|-72.00|5`;
             hits.sort((a, b) => GAZ.region.has(b) - GAZ.region.has(a) || (GAZ.cc[b] === 'ZA') - (GAZ.cc[a] === 'ZA') || (GAZ.cc[b] === sel) - (GAZ.cc[a] === sel));
             return gazPlace(hits[0]);
         }
+        // Bounded Levenshtein distance (returns maxD+1 when further apart)
+        function levBounded(a, b, maxD) {
+            if (Math.abs(a.length - b.length) > maxD) return maxD + 1;
+            let prev = new Array(b.length + 1); for (let j = 0; j <= b.length; j++) prev[j] = j;
+            for (let i = 1; i <= a.length; i++) {
+                const cur = [i]; let rowMin = i;
+                for (let j = 1; j <= b.length; j++) { const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); cur.push(v); if (v < rowMin) rowMin = v; }
+                if (rowMin > maxD) return maxD + 1; prev = cur;
+            }
+            return prev[b.length];
+        }
+        // All places matching a name — exact matches (every country) plus close spellings ("Beckhum" → Beckum)
+        function gazCandidates(q, limit = 8) {
+            if (!GAZ.loaded || !q) return [];
+            let [name, iso] = splitCountry(q);
+            const n = gazNorm(name.trim()); if (n.length < 2) return [];
+            const maxD = n.length <= 4 ? 0 : n.length <= 7 ? 1 : 2;
+            const exact = [], fuzzy = [];
+            for (let i = 0; i < GAZ.norm.length; i++) {
+                const g = GAZ.norm[i];
+                if (g === n) { exact.push(i); continue; }
+                if (!maxD || g.charCodeAt(0) !== n.charCodeAt(0) || Math.abs(g.length - n.length) > maxD) continue;
+                const d = levBounded(g, n, maxD); if (d <= maxD) fuzzy.push([i, d]);
+            }
+            const sel = selectedCountryLayer ? (COUNTRY_DB[selectedCountryLayer.feature.properties.name] || {}).iso : null;
+            const rank = i => (iso && GAZ.cc[i] === iso ? 8 : 0) + (GAZ.region.has(i) ? 4 : 0) + (GAZ.cc[i] === 'ZA' ? 2 : 0) + (GAZ.cc[i] === sel ? 1 : 0);
+            exact.sort((a, b) => rank(b) - rank(a));
+            const pre = i => { const g = GAZ.norm[i]; let k = 0; while (k < g.length && g[k] === n[k]) k++; return k; };
+            fuzzy.sort((a, b) => a[1] - b[1] || pre(b[0]) - pre(a[0]) || rank(b[0]) - rank(a[0]));
+            let list = [...exact.map(i => ({ ...gazPlace(i), exact: true, dist: 0 })), ...fuzzy.map(([i, d]) => ({ ...gazPlace(i), exact: false, dist: d }))];
+            if (iso) { const inC = list.filter(p => p.iso === iso); if (inC.length) list = [...inC, ...list.filter(p => p.iso !== iso)]; }
+            // de-duplicate same name in (almost) the same spot
+            const out = [];
+            for (const p of list) { if (out.some(o => o.n === p.n && Math.abs(o.lat - p.lat) < 0.05 && Math.abs(o.lng - p.lng) < 0.05)) continue; out.push(p); if (out.length >= limit) break; }
+            return out;
+        }
+        window.gazCandidates = gazCandidates;
         function gazInBounds(bounds, limit = 900) {
             if (!GAZ.loaded) return [];
             const out = [], s = Math.floor(bounds.getSouth() * 2), n = Math.floor(bounds.getNorth() * 2), w = Math.floor(bounds.getWest() * 2), e = Math.floor(bounds.getEast() * 2);
@@ -5162,6 +5202,21 @@ Caribbean|JM|18.00|-72.00|5`;
                 }
                 return null;
             }
+            // Fallback: a capitalised name we don't recognise (typo or very small place) — still offer it for geolocating
+            function guessPlace(text) {
+                const words = text.replace(/[()"!?]/g, ' ').split(/\s+/).filter(Boolean), lowerOk = text === text.toLowerCase();
+                const isCountry = w => Object.values(COUNTRY_DB).some(c => c.name.toLowerCase() === w.toLowerCase() || displayName(c.name).toLowerCase() === w.toLowerCase());
+                const okWord = w => { const c = w.replace(/[^\p{L}'’.-]/gu, ''); if (c.length < 3) return false; const l = c.toLowerCase(); if (STOPW.has(l) || MONTH_WORDS.has(l) || NUMW[l] != null || /^\d/.test(c)) return false; return lowerOk || /^\p{Lu}/u.test(c); };
+                for (let i = 0; i < words.length; i++) {
+                    if (!okWord(words[i]) || isCountry(words[i].replace(/[^\p{L}]/gu, ''))) continue;
+                    let j = i + 1; while (j < words.length && j - i < 3 && okWord(words[j]) && !isCountry(words[j].replace(/[^\p{L}]/gu, '')) && !lowerOk) j++;
+                    const name = words.slice(i, j).join(' ').replace(/[^\p{L}'’.\s-]/gu, '').trim();
+                    let ctry = '';
+                    for (let cl = 3; cl >= 1 && !ctry; cl--) { const w = words.slice(j, j + cl).join(' ').replace(/[^\p{L}\s]/gu, ''); if (w && isCountry(w)) ctry = w; }
+                    return { query: ctry ? `${name}, ${ctry}` : name, kind: 'guess', used: name };
+                }
+                return null;
+            }
             function parseTripText(raw) {
                 const ref = new Date();
                 let text = raw.replace(/\r/g, '').replace(/[“”]/g, '"').replace(COMMA_COUNTRY_RX, ' $1');
@@ -5200,10 +5255,13 @@ Caribbean|JM|18.00|-72.00|5`;
                     // home ("from X", "leaving from X", "home: X")
                     const homeM = seg.match(/\b(?:leav(?:e|ing)\s+from|depart(?:ing)?\s+from|starting\s+(?:in|at|from)|start\s+(?:in|at|from)|from|home(?:\s+base)?\s*[:=]|based\s+in)\s+(.+?)(?=\s+(?:to|on|and|for|via)\b|$)/i);
                     if (homeM && (si === 0 || /home/i.test(homeM[0])) && !out.home) {
-                        const hp = findPlace(homeM[1]);
-                        if (hp) { out.home = hp.query; seg = seg.replace(homeM[0], ' '); if (dates && !out.start) out.start = dates.start; if (!findPlace(seg)) { if (time) out.startTime = `${time[1].padStart(2, '0')}:${time[2]}`; return; } }
+                        let hp = findPlace(homeM[1]); if (!hp || hp.kind === 'country') { const g = guessPlace(homeM[1]); if (g && (!hp || g.query.includes(','))) hp = g; }
+                        if (hp) { out.home = hp.query; out.homeKind = hp.kind; seg = seg.replace(homeM[0], ' '); if (dates && !out.start) out.start = dates.start; if (!findPlace(seg)) { if (time) out.startTime = `${time[1].padStart(2, '0')}:${time[2]}`; return; } }
                     }
-                    const place = findPlace(seg.replace(/[()"]/g, ' ').replace(/\s+/g, ' '));
+                    const clean = seg.replace(/[()"]/g, ' ').replace(/\s+/g, ' ');
+                    let place = findPlace(clean);
+                    // "Beckhum Germany": an unknown name followed by a country is a town, not the whole country
+                    if (!place || place.kind === 'country') { const g = guessPlace(clean); if (g && (!place || g.query.includes(','))) place = g; }
                     if (!place) { if (seg0.trim().length > 2 && !/^\s*(and|then|ok|thanks?)\s*$/i.test(seg0)) out.unmatched.push(seg0.trim()); if (dates && !out.start) out.start = dates.start; return; }
                     out.stops.push({ query: place.query, kind: place.kind, nights, until, arrive: dates ? dates.start : null, mode: modeOf(seg0), stay, phone: phone && phone.trim(), email, ref: refm ? refm[1] : null, booked, flightNo: flightNo ? flightNo[1] : null, dep: time ? `${time[1].padStart(2, '0')}:${time[2]}` : null, src: seg0.trim() });
                 });
@@ -5222,6 +5280,99 @@ Caribbean|JM|18.00|-72.00|5`;
                 out.stops.forEach(s => { if (s.nights == null) { if (s.kind === 'airport') s.nights = 0; else { s.nights = 2; s.assumed = true; } } });
                 return out;
             }
+            // ---------- Geolocating names: candidates to choose from ----------
+            function candLabel(p) {
+                const ap = nearest(AIRPORTS.filter(a => a.country === p.country), [p.lat, p.lng], 900);
+                const near = ap && ap.km > 15 && ap.city.toLowerCase() !== (p.name || '').toLowerCase() ? ` · ${Math.round(ap.km)} km from ${ap.city}` : '';
+                return `${p.name}${p.admin ? ', ' + p.admin : ''} · ${p.country ? displayName(p.country) : '?'}${near}`;
+            }
+            async function onlineCandidates(q, limit = 6) {
+                try {
+                    const j = await fetchJson(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${limit}&lang=en`, 6000);
+                    return (j.features || []).filter(f => f.geometry && f.properties && f.properties.name).map(f => {
+                        const P = f.properties, lat = f.geometry.coordinates[1], lng = f.geometry.coordinates[0];
+                        const c = placeCountry({ lat, lng }, P.country ? `x, ${P.country}` : '');
+                        return { name: P.name, admin: P.state && P.state !== P.name ? P.state : '', lat, lng, iata: null, country: c, src: 'online', kind: P.osm_value || '' };
+                    });
+                } catch (e) { return []; }
+            }
+            async function placeCandidates(query, first, near) {
+                let list = [];
+                const close = (a, b, d = 0.08) => Math.abs(a.lat - b.lat) < d && Math.abs(a.lng - b.lng) < d;
+                const push = p => { if (!p || p.lat == null || list.some(o => close(o, p))) return; list.push(p); };
+                if (first) push({ ...first, src: 'match' });
+                (window.gazCandidates ? gazCandidates(query, 10) : []).forEach(g => push({ name: g.n, lat: g.lat, lng: g.lng, iata: null, country: g.c, src: g.exact ? 'match' : 'spelling', dist: g.dist }));
+                const exactCount = list.filter(p => p.src === 'match').length;
+                // Online lookup when unsure: adds places we don't have, and the state/province to tell same-named places apart
+                if (exactCount !== 1 || list.length < 2) {
+                    const online = await onlineCandidates(query, 10);
+                    list.forEach(p => { const o = online.find(o => close(o, p, 0.2) && o.admin); if (o) p.admin = o.admin; });
+                    online.filter(o => /city|town|village|hamlet|suburb|island|municipality|locality|state|county|region|archipelago|neighbourhood/i.test(o.kind) || !o.kind).forEach(push);
+                }
+                // With several same-named places, prefer the one nearest the previous stop on the trip
+                if (near && list.length > 1) {
+                    const d = p => haversine([near.lat, near.lng], [p.lat, p.lng]), tier = p => p.src === 'match' ? 0 : p.src === 'spelling' ? 1 : 2;
+                    const keepFirst = first ? list.shift() : null;
+                    list.sort((a, b) => tier(a) - tier(b) || (a.dist || 0) - (b.dist || 0) || d(a) - d(b));
+                    if (keepFirst) { const alt = list[0]; list.unshift(keepFirst); if (alt && tier(alt) === 0 && d(alt) < d(keepFirst) * 0.3) { list.shift(); list.splice(1, 0, keepFirst); } }
+                }
+                list.forEach(p => p.label = candLabel(p));
+                return list.slice(0, 8).map(p => ({ name: p.name, admin: p.admin || '', lat: +(+p.lat).toFixed(5), lng: +(+p.lng).toFixed(5), iata: p.iata || null, country: p.country || '', src: p.src, label: p.label }));
+            }
+            // How sure are we? (several same-named places, only a near-spelling, or a guessed word)
+            function certainty(ps, cands, typedCountry) {
+                if (!cands.length) return 'none';
+                if (ps.kind === 'guess' || cands[0].src !== 'match') return 'spelling';
+                if (ps.kind === 'airport' || ps.kind === 'country' || ps.kind === 'city') return 'sure';
+                const same = cands.filter(c => c.src === 'match');
+                const countries = new Set(same.map(c => c.country));
+                return countries.size > 1 && !typedCountry ? 'ambiguous' : 'sure';
+            }
+            function choiceRowHtml(id, typed, cands, pickIdx, cert) {
+                const msg = cert === 'spelling' ? `<span class="text-amber-300">“${escapeHtml(typed)}” not found exactly — did you mean:</span>` : cert === 'ambiguous' ? `<span class="text-amber-300">Several places called “${escapeHtml(typed)}” — which one?</span>` : cert === 'none' ? `<span class="text-red-300">Couldn't geolocate “${escapeHtml(typed)}”.</span>` : '';
+                const opts = cands.map((c, i) => `<option value="${i}" ${i === pickIdx ? 'selected' : ''}>${escapeHtml(c.label)}${c.src === 'spelling' ? ' (similar spelling)' : c.src === 'online' ? ' (online)' : ''}</option>`).join('');
+                return `${msg ? `<div class="text-xs mt-1">${msg}</div>` : ''}<div class="flex items-center gap-2 mt-1 flex-wrap">
+                    ${cands.length ? `<select class="trip-cand custom-select p-1.5 text-xs min-w-0 flex-1" data-id="${id}">${opts}</select>` : ''}
+                    <input class="trip-cand-q custom-input p-1.5 text-xs w-36" data-id="${id}" placeholder="Search another name…" value="">
+                    <button class="trip-cand-go metal metal-steel text-xs px-2.5 py-1.5 rounded-lg" data-id="${id}">Find</button>
+                    ${id !== 'home' ? `<button class="trip-cand-del text-xs text-gray-400 hover:text-red-300 px-1" data-id="${id}" title="Remove this stop">✕ remove</button>` : ''}</div>`;
+            }
+            const CAND_STATE = new Map();   // id → { typed, cands }
+            function applyCandidate(id, c) {
+                const t = T(); if (!c) return;
+                const place = { name: c.name, lat: c.lat, lng: c.lng, iata: c.iata || null, country: c.country };
+                const q = `${c.name}${c.country ? ', ' + displayName(c.country) : ''}`;
+                if (id === 'home') { t.home = q; t.homePlace = place; if (t.stops[0]) t.stops[0].leg.cache = null; t.returnLeg.cache = null; const h = document.getElementById('trip-home'); if (h) h.value = q; }
+                else {
+                    let i = t.stops.findIndex(s => s.id === id);
+                    if (i < 0) { const ns = newStop(q, place, 2); ns.id = id; t.stops.push(ns); i = t.stops.length - 1; }
+                    const s = t.stops[i]; s.place = place; s.query = q; s.resolvedFor = q; s.leg.cache = null; s.leg.optionsLite = []; s.leg.choice = s.leg.prefMode ? s.leg.choice : 'auto';
+                    const next = t.stops[i + 1]; if (next) { next.leg.cache = null; next.leg.choice = 'auto'; } else { t.returnLeg.cache = null; }
+                }
+                save(); renderAll(); computeAll();
+            }
+            function wireChoices(box) {
+                box.querySelectorAll('.trip-cand').forEach(sel => sel.onchange = () => { const st = CAND_STATE.get(sel.dataset.id); const c = st && st.cands[+sel.value]; applyCandidate(sel.dataset.id, c); const row = sel.closest('.cand-row'); if (row) { row.querySelector('.cand-name').textContent = c.name; row.querySelector('.cand-ctry').textContent = c.country ? displayName(c.country) : ''; const w = row.querySelector('.text-amber-300'); if (w) w.parentNode.remove(); const ic = row.closest('.items-start') && row.closest('.items-start').querySelector('.cand-icon'); if (ic) { ic.textContent = '✓'; ic.style.color = '#22c55e'; } } showMessage(`Using ${c.name}${c.country ? ', ' + displayName(c.country) : ''}`); });
+                const find = async id => {
+                    const inp = box.querySelector(`.trip-cand-q[data-id="${id}"]`); const q = inp.value.trim(); if (!q) { inp.focus(); return; }
+                    const btn = box.querySelector(`.trip-cand-go[data-id="${id}"]`); btn.disabled = true; btn.textContent = '…';
+                    const t = T(), i = t.stops.findIndex(x => x.id === id);
+                    const prev = id === 'home' ? null : i > 0 ? t.stops[i - 1].place : i < 0 && t.stops.length ? t.stops[t.stops.length - 1].place : t.homePlace;
+                    let first = null; try { first = await resolve(q); } catch (e) { }
+                    const cands = await placeCandidates(q, first, prev);
+                    btn.disabled = false; btn.textContent = 'Find';
+                    if (!cands.length) { showMessage(`Nothing found for "${q}"`, 'error'); return; }
+                    CAND_STATE.set(id, { typed: q, cands });
+                    const row = box.querySelector(`.cand-row[data-id="${id}"] .cand-choose`);
+                    row.innerHTML = choiceRowHtml(id, q, cands, 0, cands.length > 1 ? 'ambiguous' : 'sure');
+                    wireChoices(box); applyCandidate(id, cands[0]);
+                    const r = box.querySelector(`.cand-row[data-id="${id}"]`); r.querySelector('.cand-name').textContent = cands[0].name; r.querySelector('.cand-ctry').textContent = cands[0].country ? displayName(cands[0].country) : '';
+                };
+                box.querySelectorAll('.trip-cand-go').forEach(b => b.onclick = e => { e.preventDefault(); find(b.dataset.id); });
+                box.querySelectorAll('.trip-cand-q').forEach(inp => inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); find(inp.dataset.id); } });
+                box.querySelectorAll('.trip-cand-del').forEach(b => b.onclick = e => { e.preventDefault(); const t = T(); const i = t.stops.findIndex(s => s.id === b.dataset.id); if (i < 0) return; t.stops.splice(i, 1); invalidateAround(Math.max(0, i - 1)); save(); renderAll(); computeAll(); b.closest('.cand-row').remove(); showMessage('Stop removed'); });
+            }
+            const close2 = (a, b) => Math.abs(a.lat - b.lat) < 0.08 && Math.abs(a.lng - b.lng) < 0.08;
             let undoSnapshot = null;
             async function buildFromText(append) {
                 const txt = document.getElementById('trip-describe').value.trim();
@@ -5238,10 +5389,21 @@ Caribbean|JM|18.00|-72.00|5`;
                     T().describe = txt;
                     if (!append) { t.stops = []; t.returnLeg = { choice: 'auto', ref: '', booked: false, dep: '' }; }
                     const rows = [];
+                    const placeRow = (id, label, typed, p, cands, cert, extra) => {
+                        CAND_STATE.set(id, { typed, cands });
+                        const pickIdx = p ? Math.max(0, cands.findIndex(c => Math.abs(c.lat - p.lat) < 0.08 && Math.abs(c.lng - p.lng) < 0.08)) : 0;
+                        const show = cert !== 'sure' || cands.length > 1;
+                        return [cert === 'sure' ? 'ok' : cert === 'none' ? 'warn' : 'warn', `<div class="cand-row" data-id="${id}">${label}<b class="cand-name">${escapeHtml(p ? p.name : typed)}</b> <span class="cand-ctry text-gray-400">${p && p.country ? escapeHtml(displayName(p.country)) : ''}</span>${extra || ''}
+                            ${show ? `<details class="cand-choose-wrap" ${cert !== 'sure' ? 'open' : ''}><summary class="text-[11px] text-purple-400 cursor-pointer select-none">${cert === 'sure' ? 'Not this one? choose another' : 'Choose the right place'}</summary><div class="cand-choose">${choiceRowHtml(id, typed, cands, pickIdx, cert)}</div></details>` : `<div class="cand-choose hidden"></div>`}</div>`, cert];
+                    };
+                    const typedCountry = q => /,/.test(q) || (window.splitCountry && !!splitCountry(q)[1]);
                     if (parsed.home) {
-                        const hp = await resolve(parsed.home);
-                        if (hp) { t.home = parsed.home; t.homePlace = hp; rows.push(['ok', `Home base: <b>${escapeHtml(hp.name)}</b>${hp.country ? ', ' + escapeHtml(displayName(hp.country)) : ''}`]); }
-                        else rows.push(['warn', `Couldn't place home "${escapeHtml(parsed.home)}"`]);
+                        let hp = parsed.homeKind === 'guess' ? null : await resolve(parsed.home);
+                        const cands = await placeCandidates(parsed.home, hp);
+                        const cert = certainty({ kind: parsed.homeKind }, cands, typedCountry(parsed.home));
+                        if (!hp && cands[0]) hp = { name: cands[0].name, lat: cands[0].lat, lng: cands[0].lng, iata: null, country: cands[0].country };
+                        if (hp) { t.home = `${hp.name}${hp.country ? ', ' + displayName(hp.country) : ''}`; t.homePlace = hp; }
+                        rows.push(placeRow('home', 'Home base: ', parsed.home, hp, cands, hp ? cert : 'none'));
                     } else if (!t.homePlace) {
                         const hp = await resolve('Cape Town'); if (hp) { t.home = 'Cape Town'; t.homePlace = hp; rows.push(['info', 'No home given — assumed <b>Cape Town</b> (change it above)']); }
                     }
@@ -5250,9 +5412,14 @@ Caribbean|JM|18.00|-72.00|5`;
                     if (parsed.returnMode) t.returnLeg.prefMode = parsed.returnMode;
                     if (parsed.startTime && parsed.stops[0]) parsed.stops[0].dep = parsed.stops[0].dep || parsed.startTime;
                     for (const ps of parsed.stops) {
-                        const p = await resolve(ps.query);
-                        if (!p) { rows.push(['warn', `Couldn't find "<b>${escapeHtml(ps.query)}</b>" — add it manually`]); continue; }
-                        const s = newStop(ps.query, p, ps.nights); s.resolvedFor = ps.query;
+                        let p = ps.kind === 'guess' ? null : await resolve(ps.query);
+                        const prev = t.stops.length ? t.stops[t.stops.length - 1].place : null;
+                        const cands = await placeCandidates(ps.query, p, ps.kind === 'airport' ? null : prev);
+                        if (p && cands[0] && !close2(cands[0], p)) p = { name: cands[0].name, lat: cands[0].lat, lng: cands[0].lng, iata: cands[0].iata, country: cands[0].country };
+                        const cert = certainty(ps, cands, typedCountry(ps.query));
+                        if (!p && cands[0]) p = { name: cands[0].name, lat: cands[0].lat, lng: cands[0].lng, iata: cands[0].iata, country: cands[0].country };
+                        if (!p) { const id = 'x' + uid(); CAND_STATE.set(id, { typed: ps.query, cands: [] }); rows.push(['warn', `<div class="cand-row" data-id="${id}">Couldn't geolocate “<b class="cand-name">${escapeHtml(ps.query)}</b>” <span class="cand-ctry"></span> — search for it below or add it manually.<div class="cand-choose">${choiceRowHtml(id, ps.query, [], 0, 'none')}</div></div>`, 'none']); continue; }
+                        const s = newStop(p.name + (p.country ? ', ' + displayName(p.country) : ''), p, ps.nights); s.resolvedFor = s.query;
                         if (ps.stay) s.stay.name = ps.stay.replace(/^the\s+/i, m => m);
                         if (ps.phone) s.stay.phone = ps.phone; if (ps.email) s.stay.email = ps.email;
                         if (ps.ref) s.stay.ref = ps.ref;
@@ -5262,14 +5429,16 @@ Caribbean|JM|18.00|-72.00|5`;
                         if (ps.dep) s.leg.dep = ps.dep;
                         s.notes = ps.src;
                         t.stops.push(s);
-                        rows.push(['ok', `<span class="stop-num" style="width:20px;height:20px;font-size:10px;display:inline-grid">${t.stops.length}</span> <b>${escapeHtml(p.name)}</b>${p.country ? ` <span class="text-gray-400">${escapeHtml(displayName(p.country))}</span>` : ''} — ${s.nights} night${s.nights === 1 ? '' : 's'}${ps.assumed ? ' <span class="text-amber-400">(assumed)</span>' : ''}${ps.mode ? ` · ${MODE[ps.mode].label.toLowerCase()} preferred` : ''}${ps.stay ? ` · 🏨 ${escapeHtml(ps.stay)}${s.stay.booked ? ' ✓' : ''}` : ''}${ps.phone ? ` · ☎ ${escapeHtml(ps.phone)}` : ''}${ps.flightNo ? ` · ✈ ${escapeHtml(ps.flightNo)}` : ''}`]);
+                        rows.push(placeRow(s.id, `<span class="stop-num" style="width:20px;height:20px;font-size:10px;display:inline-grid">${t.stops.length}</span> `, ps.query, p, cands, cert, ` — ${s.nights} night${s.nights === 1 ? '' : 's'}${ps.assumed ? ' <span class="text-amber-400">(assumed)</span>' : ''}${ps.mode ? ` · ${MODE[ps.mode].label.toLowerCase()} preferred` : ''}${ps.stay ? ` · 🏨 ${escapeHtml(ps.stay)}${s.stay.booked ? ' ✓' : ''}` : ''}${ps.phone ? ` · ☎ ${escapeHtml(ps.phone)}` : ''}${ps.flightNo ? ` · ✈ ${escapeHtml(ps.flightNo)}` : ''}`));
                     }
                     parsed.unmatched.forEach(u => rows.push(['info', `Skipped (no place found): "${escapeHtml(u.slice(0, 90))}"`]));
                     rows.push(['info', `Return home at the end: <b>${t.returnHome ? 'yes' : 'no'}</b>`]);
                     save(); renderAll(); computeAll();
                     document.getElementById('trip-undo').classList.remove('hidden');
                     const col = { ok: '#22c55e', warn: '#f59e0b', info: '#94a3b8' };
-                    box.innerHTML = `<div class="rounded-xl p-3 space-y-1.5" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)"><div class="panel-title mb-1">What I understood</div>${rows.map(([k, h]) => `<div class="text-sm flex items-start gap-2"><span style="color:${col[k]}">${k === 'ok' ? '✓' : k === 'warn' ? '⚠' : 'ℹ'}</span><span>${h}</span></div>`).join('')}<div class="text-xs text-gray-400 pt-1">Everything below is editable — change nights, swap transport, add hotel details or re-order stops.</div></div>`;
+                    const unsure = rows.filter(r => r[2] && r[2] !== 'sure').length;
+                    box.innerHTML = `<div class="rounded-xl p-3 space-y-1.5" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)"><div class="panel-title mb-1">What I understood</div>${unsure ? `<div class="warn-card high mb-2"><span>⚠</span><div><b>${unsure} place${unsure === 1 ? '' : 's'} need${unsure === 1 ? 's' : ''} checking.</b> I picked the closest match — choose the right one from the list, or search another name.</div></div>` : ''}${rows.map(([k, h]) => `<div class="text-sm flex items-start gap-2"><span class="cand-icon" style="color:${col[k]}">${k === 'ok' ? '✓' : k === 'warn' ? '⚠' : 'ℹ'}</span><div class="min-w-0 flex-1">${h}</div></div>`).join('')}<div class="text-xs text-gray-400 pt-1">Everything below is editable — change nights, swap transport, add hotel details or re-order stops.</div></div>`;
+                    wireChoices(box);
                     showMessage(`Trip built: ${t.stops.length} stop${t.stops.length === 1 ? '' : 's'} — routes are being calculated`);
                 } catch (err) { console.error(err); box.innerHTML = `<div class="warn-card crit"><span>⛔</span><div>Something went wrong reading the plan: ${escapeHtml(err.message || err)}</div></div>`; }
                 finally { btns.forEach(b => b.disabled = false); }
