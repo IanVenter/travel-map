@@ -2699,13 +2699,36 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
         .leaflet-popup-content { margin: 12px 14px; color:#e6e9f0; }
         .leaflet-popup-content a { color:#d9b46a; }
         .leaflet-container a.leaflet-popup-close-button { color:#aab2c2; }
-        .apt { position:relative; display:flex; align-items:center; gap:4px; transform:translate(-5px,-5px); white-space:nowrap; }
-        .apt i { width:9px; height:9px; border-radius:50%; background: radial-gradient(circle at 35% 30%, #fff, #aeb6c5 60%, #5a6578); box-shadow: 0 0 6px rgba(255,255,255,.6); flex-shrink:0; }
-        .apt.hub i { width:11px; height:11px; background: radial-gradient(circle at 35% 30%, #fff4d6, #d9b46a 55%, #a87d32); box-shadow: 0 0 10px rgba(247,227,181,.9); }
-        .apt.origin i { width:13px; height:13px; background: radial-gradient(circle at 35% 30%, #d1fae5, #22c55e 55%, #15803d); box-shadow: 0 0 14px rgba(34,197,94,.95); }
+        .apt { position:relative; display:flex; align-items:center; gap:5px; white-space:nowrap; }
+        .apt i { flex-shrink:0; border-radius:50%; }
         .apt b { font: 700 10px/1 'Sora',sans-serif; color:#e6e9f0; letter-spacing:.06em; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
-        .zoom-low .apt:not(.hub):not(.origin) b { display:none; }
-        .zoom-low .apt:not(.hub):not(.origin) i { width:6px; height:6px; }
+        .apt b em { font-style:normal; font-weight:600; font-family:'Inter',sans-serif; letter-spacing:0; opacity:.85; margin-left:4px; }
+        /* Tier 1 — global mega-hub (gold, large) */
+        .apt.t1 { transform:translate(-8px,-8px); }
+        .apt.t1 i { width:16px; height:16px; background: radial-gradient(circle at 35% 30%, #fff6dc, #e8c374 45%, #9a6d22); box-shadow: 0 0 0 2px rgba(11,16,32,.9), 0 0 0 3.5px #f2d48f, 0 0 16px rgba(247,227,181,.95); }
+        .apt.t1 b { font-size:12px; color:#fbe7b6; }
+        /* Tier 2 — major international (platinum, medium) */
+        .apt.t2 { transform:translate(-6px,-6px); }
+        .apt.t2 i { width:12px; height:12px; background: radial-gradient(circle at 35% 30%, #ffffff, #c9d3e6 50%, #6b7891); box-shadow: 0 0 0 1.5px rgba(11,16,32,.9), 0 0 0 2.8px #dfe6f3, 0 0 10px rgba(210,222,245,.8); }
+        .apt.t2 b { font-size:11px; color:#eef2fa; }
+        /* Tier 3 — national gateway (sapphire) */
+        .apt.t3 { transform:translate(-5px,-5px); }
+        .apt.t3 i { width:9px; height:9px; background: radial-gradient(circle at 35% 30%, #e0f2fe, #38bdf8 55%, #0e6aa0); box-shadow: 0 0 0 1.5px rgba(11,16,32,.9), 0 0 7px rgba(56,189,248,.8); }
+        .apt.t3 b { color:#bde6fb; }
+        /* Tier 4 — regional (bronze, small) */
+        .apt.t4 { transform:translate(-3.5px,-3.5px); }
+        .apt.t4 i { width:7px; height:7px; background: radial-gradient(circle at 35% 30%, #f5dcc4, #c08457 55%, #7a4a26); box-shadow: 0 0 0 1px rgba(11,16,32,.9), 0 0 5px rgba(192,132,87,.7); }
+        .apt.t4 b { font-size:9px; color:#e7cbb2; }
+        .apt.origin i { width:14px; height:14px; background: radial-gradient(circle at 35% 30%, #d1fae5, #22c55e 55%, #15803d) !important; box-shadow: 0 0 0 2px rgba(11,16,32,.9), 0 0 14px rgba(34,197,94,.95) !important; }
+        /* Labels by zoom: hubs always; smaller airports appear as you zoom in */
+        #map.az-0 .apt.t2 b em, #map.az-0 .apt.t3 b, #map.az-0 .apt.t4 b, #map.az-0 .apt.t1 b em { display:none; }
+        #map.az-1 .apt.t3 b em, #map.az-1 .apt.t4 b { display:none; }
+        #map.az-2 .apt.t4 b em { display:none; }
+        #map.az-0 .apt.t4 i { width:5px; height:5px; }
+        .apt-legend { position:absolute; right:14px; bottom:30px; z-index:900; padding:9px 12px; border-radius:12px; font-size:11px; color:#d7dce6; pointer-events:none;
+            background: linear-gradient(160deg, rgba(22,29,45,.92), rgba(8,12,20,.94)) padding-box, linear-gradient(135deg, rgba(255,255,255,.28), rgba(255,255,255,.04) 45%, rgba(217,180,106,.45)) border-box; border:1px solid transparent; }
+        .apt-legend .r { display:flex; align-items:center; gap:8px; margin-top:4px; }
+        .apt-legend .r .apt { transform:none !important; width:18px; justify-content:center; }
         .route-anim { stroke-dasharray: 6 8; animation: route-dash 1.6s linear infinite; }
         @keyframes route-dash { to { stroke-dashoffset: -28; } }
         .mover-icon { background:none; border:none; }
@@ -3279,13 +3302,39 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
         // 2. AIRPORTS & SA FLIGHT ROUTES
         // =====================================================================
         let airportLayer, networkLayer, saRouteLayer, airportsOn = false, routeOrigin = localStorage.getItem('travelOrigin') || 'CPT';
+        // ---------- Airport importance tiers ----------
+        const APT_T1 = 'LHR CDG AMS FRA IST DXB DOH SIN HKG ATL JFK LAX ORD HND ICN PEK PVG CAN DEL BKK SYD MAD'.split(' ');
+        const APT_T2 = 'MUC ZRH VIE CPH FCO BCN BER MAN DUB GVA DUS HAM NCE AGP PMI EDI LIS ARN OSL HEL ATH BRU MXP WAW PRG SVO LED AUH JED RUH TLV ADD CAI NBO JNB CPT CMN LOS BOM KUL CGK DPS MNL TPE KIX SGN MEL BNE PER AKL EWR IAD MIA SFO LAS YVR YUL MEX CUN BOG LIM SCL EZE GRU GIG PTY'.split(' ');
+        const APT_TIER_NAME = { 1: 'Global mega-hub', 2: 'Major international', 3: 'National gateway', 4: 'Regional airport' };
+        function airportTier(a) {
+            if (APT_T1.includes(a.iata)) return 1;
+            if (APT_T2.includes(a.iata) || a.hub) return 2;
+            if ((countryAirports(a.country)[0] || {}).iata === a.iata) return 3;
+            return 4;
+        }
+        window.airportTier = airportTier;
+        function updateAptZoom() {
+            const z = map.getZoom(), el = document.getElementById('map');
+            ['az-0', 'az-1', 'az-2', 'az-3'].forEach(c => el.classList.remove(c));
+            el.classList.add(z < 3.5 ? 'az-0' : z < 5 ? 'az-1' : z < 6.5 ? 'az-2' : 'az-3');
+        }
+        function aptLegend(show) {
+            let lg = document.getElementById('apt-legend');
+            if (!lg) {
+                lg = document.createElement('div'); lg.id = 'apt-legend'; lg.className = 'apt-legend hidden';
+                lg.innerHTML = '<div class="text-[10px] uppercase tracking-[.18em] text-gray-400 font-semibold">Airports</div>' + [1, 2, 3, 4].map(t => `<div class="r"><span class="apt t${t}"><i></i></span>${APT_TIER_NAME[t]}</div>`).join('') + '<div class="r"><span class="apt origin"><i></i></span>Your departure airport</div>';
+                document.getElementById('map').parentNode.appendChild(lg);
+            }
+            lg.classList.toggle('hidden', !show);
+        }
         function buildAirportLayer() {
             airportLayer = L.layerGroup(); networkLayer = L.layerGroup(); saRouteLayer = L.layerGroup();
             AIRPORTS.forEach(a => {
-                const cls = a.iata === routeOrigin ? 'origin' : a.hub ? 'hub' : '';
-                const mk = L.marker([a.lat, a.lng], { icon: L.divIcon({ className: 'mover-icon', iconSize: [0, 0], html: `<div class="apt ${cls}"><i></i><b>${a.iata}</b></div>` }), zIndexOffset: a.hub ? 500 : 0 });
+                const t = airportTier(a), cls = `t${t}${a.iata === routeOrigin ? ' origin' : ''}`;
+                const mk = L.marker([a.lat, a.lng], { icon: L.divIcon({ className: 'mover-icon', iconSize: [0, 0], html: `<div class="apt ${cls}"><i></i><b>${a.iata}<em>${escapeHtml(a.city)}</em></b></div>` }), zIndexOffset: (5 - t) * 300 + (a.iata === routeOrigin ? 2000 : 0) });
                 const direct = SA_DIRECT[routeOrigin]?.includes(a.iata);
-                mk.bindTooltip(`<b>${a.iata}</b> · ${escapeHtml(a.city)}, ${escapeHtml(displayName(a.country))}${a.hub ? '<br><span style="color:#d9b46a">Major hub</span>' : ''}${direct ? `<br><span style="color:#22c55e">Non-stop from ${routeOrigin}</span>` : ''}`, { className: 'country-tip', direction: 'top', offset: [0, -6] });
+                const tc = ['', '#f2d48f', '#dfe6f3', '#38bdf8', '#c08457'][t];
+                mk.bindTooltip(`<b>${a.iata}</b> · ${escapeHtml(a.city)}, ${escapeHtml(displayName(a.country))}<br><span style="color:${tc}">● ${APT_TIER_NAME[t]}</span>${direct ? `<br><span style="color:#22c55e">Non-stop from ${routeOrigin}</span>` : ''}`, { className: 'country-tip', direction: 'top', offset: [0, -8] });
                 mk.on('click', () => { const layer = countryLayers[a.country]; if (layer) handleCountryClick(layer); });
                 airportLayer.addLayer(mk);
             });
@@ -3294,10 +3343,11 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
         function setAirportsOn(on) {
             airportsOn = on;
             document.getElementById('origin-row').classList.toggle('hidden', !on);
+            aptLegend(on);
             if (on) { if (!airportLayer) buildAirportLayer(); networkLayer.addTo(map); saRouteLayer.addTo(map); airportLayer.addTo(map); updateZoomClass(); if (selectedCountryLayer) drawSaRoutes(selectedCountryLayer.feature.properties.name); }
             else { [airportLayer, networkLayer, saRouteLayer].forEach(l => l && map.removeLayer(l)); removeMovers(mv => mv.map === map && mv.tag === 'sa'); }
         }
-        function updateZoomClass() { document.getElementById('map').classList.toggle('zoom-low', map.getZoom() < 4); }
+        function updateZoomClass() { document.getElementById('map').classList.toggle('zoom-low', map.getZoom() < 4); updateAptZoom(); }
 
         function legHours(km) { return km / 820 + 0.45; }
         function computeSaRoutes(name) {
