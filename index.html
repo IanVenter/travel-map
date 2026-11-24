@@ -2722,11 +2722,11 @@ Zimbabwe|ZW|AF|VF|90 days|USD|Apr–Oct|Visa-free.
         .apt.t4 i { width:12px; height:12px; border-radius:3.5px; color:#fff7ee; background: linear-gradient(150deg, #e9b98d, #b0713f 55%, #6e4220); box-shadow: 0 0 0 1px #0b1020, 0 0 0 1.8px #d9a77b, 0 0 5px rgba(192,132,87,.6); }
         .apt.t4 b { font-size:9px; color:#e7cbb2; }
         .apt.origin i { color:#fff !important; background: linear-gradient(150deg, #bbf7d0, #22c55e 55%, #15803d) !important; box-shadow: 0 0 0 1.5px #0b1020, 0 0 0 3px #86efac, 0 0 14px rgba(34,197,94,.9) !important; }
-        /* Labels by zoom: hubs always; smaller airports appear as you zoom in */
-        #map.az-0 .apt.t2 b em, #map.az-0 .apt.t3 b, #map.az-0 .apt.t4 b, #map.az-0 .apt.t1 b em { display:none; }
-        #map.az-1 .apt.t3 b em, #map.az-1 .apt.t4 b { display:none; }
-        #map.az-2 .apt.t4 b em { display:none; }
-        #map.az-0 .apt.t4 i { width:9px; height:9px; } #map.az-0 .apt.t4 { transform:translate(-4.5px,-4.5px); }
+        /* Visibility by zoom: world view = mega-hubs (+ major), smaller airports appear as you zoom in */
+        #map.az-0 .apt.t2:not(.origin), #map.az-0 .apt.t3:not(.origin), #map.az-0 .apt.t4:not(.origin),
+        #map.az-1 .apt.t3:not(.origin), #map.az-1 .apt.t4:not(.origin),
+        #map.az-2 .apt.t4:not(.origin) { display:none; }
+        #map.az-0 .apt b em, #map.az-1 .apt b em, #map.az-2 .apt.t3 b em { display:none; }
         .apt-legend { position:absolute; right:14px; bottom:30px; z-index:900; padding:9px 12px; border-radius:12px; font-size:11px; color:#d7dce6; pointer-events:none;
             background: linear-gradient(160deg, rgba(22,29,45,.92), rgba(8,12,20,.94)) padding-box, linear-gradient(135deg, rgba(255,255,255,.28), rgba(255,255,255,.04) 45%, rgba(217,180,106,.45)) border-box; border:1px solid transparent; }
         .apt-legend .r { display:flex; align-items:center; gap:8px; margin-top:4px; }
@@ -3319,7 +3319,7 @@ Jemaa el-Fnaa, Marrakech|Morocco|31.6258|-7.9891|5,5,8,9,8,6,7,7,7,9,7,8|Ramadan
         function updateAptZoom() {
             const z = map.getZoom(), el = document.getElementById('map');
             ['az-0', 'az-1', 'az-2', 'az-3'].forEach(c => el.classList.remove(c));
-            el.classList.add(z < 3.5 ? 'az-0' : z < 5 ? 'az-1' : z < 6.5 ? 'az-2' : 'az-3');
+            el.classList.add(z < 2.5 ? 'az-0' : z < 4.5 ? 'az-1' : z < 6 ? 'az-2' : 'az-3');
         }
         function aptLegend(show) {
             let lg = document.getElementById('apt-legend');
