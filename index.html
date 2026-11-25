@@ -5068,6 +5068,12 @@ Caribbean|JM|18.00|-72.00|5`;
             const scheduleRender = () => { clearTimeout(renderT); renderT = setTimeout(renderAll, 200); };
             window.renderTrip = renderAll;
             // Snapshot for PDF export
+            // Health / safety facts for any country (used by the assistant)
+            window.countryHealth = c => ({
+                yfEntry: YF_ENTRY.includes(c), yfSA: YF_SA.includes(c), malaria: MALARIA.includes(c), malariaLocal: MALARIA_LOCAL[c] || '',
+                developed: DEVELOPED.includes(c), schengen: SCHENGEN.includes(c), safety: safetyLevel(c), safetyTxt: SAFETY_TXT[safetyLevel(c)],
+                crime: CRIME_NOTES[CRIME_BY[c]] || '', emergency: EMERGENCY[c] || (SCHENGEN.includes(c) ? '112' : '112 (verify locally)')
+            });
             window.tripSnapshot = () => {
                 const t = T(), sched = schedule(), days = buildProgram(sched), checks = buildChecks(sched);
                 const countries = [...new Set(t.stops.filter(s => s.place && s.place.country).map(s => s.place.country))];
@@ -6212,6 +6218,467 @@ Caribbean|JM|18.00|-72.00|5`;
                 if (localStorage.getItem('travelSchengen') === 'on') { t.checked = true; set(true); }
             }
             wire();
+        })();
+    </script>
+    <style>
+        #ta-fab { position:fixed; right:22px; bottom:22px; z-index:1600; height:56px; padding:0 20px 0 16px; border-radius:999px; display:flex; align-items:center; gap:10px; font:700 14px 'Sora',sans-serif; color:#1a1206;
+            background: linear-gradient(150deg, #fff6dc, #e8c374 40%, #b8862f 75%, #f2d48f); box-shadow: 0 0 0 1px rgba(255,255,255,.35) inset, 0 14px 34px -10px rgba(217,180,106,.75), 0 4px 12px rgba(0,0,0,.6); transition: transform .15s, box-shadow .15s; }
+        #ta-fab:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(255,255,255,.45) inset, 0 18px 40px -10px rgba(217,180,106,.9), 0 4px 12px rgba(0,0,0,.6); }
+        #ta-fab svg { width:22px; height:22px; }
+        #ta-fab .dot { width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e; }
+        #ta-panel { position:fixed; right:22px; bottom:22px; z-index:1601; width:min(420px, calc(100vw - 24px)); height:min(640px, calc(100vh - 44px)); display:flex; flex-direction:column; border-radius:20px; overflow:hidden; color:#e8ebf2;
+            background: linear-gradient(165deg, rgba(24,31,48,.985), rgba(8,12,20,.99)) padding-box, linear-gradient(135deg, rgba(255,255,255,.38), rgba(255,255,255,.05) 40%, rgba(217,180,106,.6)) border-box; border:1px solid transparent; box-shadow: 0 30px 70px -20px rgba(0,0,0,.95); }
+        #ta-panel .ta-head { padding:14px 16px 12px; display:flex; align-items:center; gap:10px; border-bottom:1px solid rgba(255,255,255,.07); background: linear-gradient(180deg, rgba(255,255,255,.05), transparent); }
+        #ta-panel .ta-avatar { width:36px; height:36px; border-radius:12px; display:grid; place-items:center; color:#1a1206; background: linear-gradient(150deg, #fff6dc, #e8c374 45%, #a87a2a); box-shadow: 0 0 14px rgba(247,227,181,.5); flex:none; }
+        #ta-panel .ta-avatar svg { width:20px; height:20px; }
+        #ta-msgs { flex:1; overflow-y:auto; padding:14px 14px 6px; display:flex; flex-direction:column; gap:10px; scroll-behavior:smooth; }
+        .ta-msg { max-width:92%; padding:10px 12px; border-radius:14px; font-size:13px; line-height:1.5; word-wrap:break-word; }
+        .ta-msg.user { align-self:flex-end; background: linear-gradient(150deg, rgba(232,195,116,.26), rgba(168,122,42,.2)); border:1px solid rgba(232,195,116,.35); border-bottom-right-radius:4px; }
+        .ta-msg.bot { align-self:flex-start; background: rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.08); border-bottom-left-radius:4px; }
+        .ta-msg.bot b, .ta-msg.bot strong { color:#fbe7b6; }
+        .ta-msg.bot h4 { font:700 12px 'Sora',sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#d9b46a; margin:8px 0 4px; }
+        .ta-msg.bot h4:first-child { margin-top:0; }
+        .ta-msg.bot ul { margin:4px 0 2px; padding-left:0; list-style:none; }
+        .ta-msg.bot li { position:relative; padding-left:16px; margin:3px 0; }
+        .ta-msg.bot li::before { content:''; position:absolute; left:4px; top:8px; width:5px; height:5px; border-radius:50%; background:#d9b46a; }
+        .ta-msg.bot li.bad::before { background:#ef4444; } .ta-msg.bot li.warn::before { background:#f59e0b; } .ta-msg.bot li.good::before { background:#22c55e; }
+        .ta-msg.bot a { color:#c4b5fd; text-decoration:underline; text-underline-offset:2px; }
+        .ta-msg.bot .src { margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,.08); font-size:11px; color:#94a3b8; }
+        .ta-msg.bot table { width:100%; border-collapse:collapse; font-size:12px; margin:4px 0; }
+        .ta-msg.bot td, .ta-msg.bot th { padding:3px 6px; border-bottom:1px solid rgba(255,255,255,.06); text-align:left; }
+        .ta-msg.bot th { color:#94a3b8; font-weight:600; }
+        .ta-typing span { display:inline-block; width:6px; height:6px; margin-right:3px; border-radius:50%; background:#d9b46a; animation: taBounce 1s infinite; }
+        .ta-typing span:nth-child(2) { animation-delay:.15s } .ta-typing span:nth-child(3) { animation-delay:.3s }
+        @keyframes taBounce { 0%,80%,100% { opacity:.25; transform:translateY(0) } 40% { opacity:1; transform:translateY(-3px) } }
+        #ta-chips { display:flex; gap:6px; overflow-x:auto; padding:8px 14px 4px; scrollbar-width:none; }
+        #ta-chips::-webkit-scrollbar { display:none; }
+        #ta-chips button { flex:none; font-size:11.5px; font-weight:600; padding:6px 11px; border-radius:999px; color:#e8ebf2; background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); white-space:nowrap; }
+        #ta-chips button:hover { border-color: rgba(217,180,106,.6); background: rgba(217,180,106,.12); }
+        #ta-form { display:flex; gap:8px; padding:10px 12px 12px; border-top:1px solid rgba(255,255,255,.07); }
+        #ta-input { flex:1; resize:none; max-height:110px; min-height:42px; padding:10px 12px; border-radius:12px; font-size:13px; color:#eef1f6; background: rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.12); outline:none; }
+        #ta-input:focus { border-color: rgba(217,180,106,.6); }
+        #ta-send { width:42px; height:42px; border-radius:12px; flex:none; display:grid; place-items:center; color:#1a1206; background: linear-gradient(150deg, #fff6dc, #e8c374 45%, #a87a2a); }
+        #ta-send:disabled { opacity:.5; }
+        #ta-settings { padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.07); background: rgba(0,0,0,.25); font-size:12px; }
+        .ta-mode { font-size:10px; font-weight:700; letter-spacing:.08em; padding:3px 8px; border-radius:999px; text-transform:uppercase; }
+        .ta-mode.ai { color:#a7f3d0; background: rgba(34,197,94,.14); border:1px solid rgba(34,197,94,.45); }
+        .ta-mode.local { color:#fde68a; background: rgba(217,180,106,.12); border:1px solid rgba(217,180,106,.4); }
+        .ta-iconbtn { width:32px; height:32px; border-radius:10px; display:grid; place-items:center; color:#cbd5e1; background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); flex:none; }
+        .ta-iconbtn:hover { color:#fff; border-color: rgba(255,255,255,.25); }
+        .ta-iconbtn svg { width:16px; height:16px; }
+        @media (max-width: 640px) { #ta-fab span.lbl { display:none; } #ta-fab { padding:0 16px; } #ta-panel { right:12px; bottom:12px; } }
+    </style>
+    <button id="ta-fab" title="Travel assistant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 01-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1121 12z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg><span class="lbl">Ask Atlas</span><span class="dot"></span></button>
+    <div id="ta-panel" class="hidden" role="dialog" aria-label="Travel assistant">
+        <div class="ta-head">
+            <div class="ta-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.8 3 2.8 15 0 18M12 3c-2.8 3-2.8 15 0 18"/></svg></div>
+            <div class="flex-1 min-w-0"><div class="font-display font-bold text-[15px] leading-tight">Atlas · Travel Assistant</div><div class="mt-0.5"><span id="ta-mode" class="ta-mode local">Built-in</span></div></div>
+            <button id="ta-clear" class="ta-iconbtn" title="Clear chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+            <button id="ta-gear" class="ta-iconbtn" title="AI settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></button>
+            <button id="ta-close" class="ta-iconbtn" title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <div id="ta-settings" class="hidden">
+            <div class="font-semibold text-[13px] mb-1" style="color:#fbe7b6">AI mode with live web search (optional)</div>
+            <p class="text-gray-400 leading-relaxed mb-2">Without a key, Atlas answers from your trip, packing list and built-in travel data, and searches Wikipedia. Add your own <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color:#c4b5fd;text-decoration:underline">Anthropic API key</a> to let Claude answer anything and search the web live, for things like current visa fees. You pay Anthropic per use (usually a few cents per question).</p>
+            <div class="flex gap-2 mb-2"><input id="ta-key" type="password" autocomplete="off" placeholder="sk-ant-…" class="custom-input p-2 text-xs flex-1"><select id="ta-model" class="custom-select p-2 text-xs w-32"><option value="claude-sonnet-5-5">Sonnet 5.5</option><option value="claude-haiku-5-5">Haiku 5.5 (cheaper)</option><option value="claude-opus-5-5">Opus 5.5 (best)</option></select></div>
+            <div class="flex gap-2 items-center"><button id="ta-key-save" class="gradient-btn text-xs px-3 py-1.5 rounded-lg">Save</button><button id="ta-key-del" class="metal metal-steel text-xs px-3 py-1.5 rounded-lg">Remove key</button><span class="text-[10.5px] text-gray-500 ml-1">Stored only in this browser on this device — never in the website or GitHub.</span></div>
+        </div>
+        <div id="ta-msgs"></div>
+        <div id="ta-chips"></div>
+        <form id="ta-form"><textarea id="ta-input" rows="1" placeholder="Ask about visas, routes, packing, vaccinations, weather…"></textarea><button id="ta-send" type="submit" title="Send"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3.4 20.4l17.4-7.5a1 1 0 000-1.8L3.4 3.6a1 1 0 00-1.4 1.1L4 11l9 1-9 1-2 6.3a1 1 0 001.4 1.1z"/></svg></button></form>
+    </div>
+    <script>
+        // =====================================================================
+        // ATLAS — in-app travel assistant (built-in engine + optional Claude AI with web search)
+        // =====================================================================
+        (function () {
+            const $ = id => document.getElementById(id);
+            const LS_HIST = 'atlasChat', LS_KEY = 'atlasApiKey', LS_MODEL = 'atlasModel';
+            let history = []; try { history = JSON.parse(localStorage.getItem(LS_HIST) || '[]'); } catch (e) { }
+            let busy = false;
+            const esc = s => escapeHtml(String(s == null ? '' : s));
+            const strip = h => String(h || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+            const apiKey = () => (localStorage.getItem(LS_KEY) || '').trim();
+            const DAYMS = 86400000;
+
+            // ---------- UI ----------
+            function setMode() { const ai = !!apiKey(); const m = $('ta-mode'); m.className = 'ta-mode ' + (ai ? 'ai' : 'local'); m.textContent = ai ? 'AI · web search on' : 'Built-in · free'; }
+            function scrollDown() { const m = $('ta-msgs'); m.scrollTop = m.scrollHeight; }
+            function bubble(role, html) { const d = document.createElement('div'); d.className = 'ta-msg ' + (role === 'user' ? 'user' : 'bot'); d.innerHTML = html; $('ta-msgs').appendChild(d); scrollDown(); return d; }
+            function saveHist() { history = history.slice(-40); try { localStorage.setItem(LS_HIST, JSON.stringify(history)); } catch (e) { } }
+            function renderHistory() {
+                $('ta-msgs').innerHTML = '';
+                if (!history.length) bubble('bot', welcomeHtml());
+                history.forEach(m => bubble(m.role, m.role === 'user' ? esc(m.text).replace(/\n/g, '<br>') : m.html));
+            }
+            function welcomeHtml() {
+                const t = plannerState.trip, n = t && t.stops ? t.stops.filter(s => s.place).length : 0;
+                return `<b>Hi${n ? '' : ' there'}! I'm Atlas.</b> I can check your ${n ? `trip (${n} stop${n === 1 ? '' : 's'})` : 'trip'}, packing list, vaccinations, visas, weather and routes — or look things up.<br><span class="text-gray-400 text-xs">Try a button below or type a question, e.g. <i>“weather in Beckum”</i>, <i>“do I need a visa for Turkey?”</i>, <i>“how do I get from Amsterdam to Beckum?”</i></span>${apiKey() ? '' : `<div class="text-[11px] text-gray-500 mt-2">Tip: add an AI key under ⚙ for live web answers (e.g. today's visa fees).</div>`}`;
+            }
+            const CHIPS = [['🧳 Check my packing', 'Check my packing list — what am I missing?'], ['🚩 Flagged items', 'List my flagged packing items'], ['💉 Vaccinations', 'What injections and health precautions do I need for my trip?'],
+                ['🛂 Visas & costs', 'What visas do I need for my trip and what do they cost?'], ['🌦 Weather', 'What weather can I expect on my trip?'], ['🗺 My routes', 'Summarise my routes and travel legs'], ['⚠ Trip checks', 'What are the critical warnings for my trip?']];
+            function renderChips() { $('ta-chips').innerHTML = CHIPS.map(([l, q]) => `<button type="button" data-q="${esc(q)}">${l}</button>`).join(''); $('ta-chips').querySelectorAll('button').forEach(b => b.onclick = () => ask(b.dataset.q)); }
+            function open() { $('ta-panel').classList.remove('hidden'); $('ta-fab').classList.add('hidden'); setMode(); renderHistory(); setTimeout(() => $('ta-input').focus(), 50); }
+            function close() { $('ta-panel').classList.add('hidden'); $('ta-fab').classList.remove('hidden'); }
+
+            async function ask(q) {
+                q = (q || '').trim(); if (!q || busy) return;
+                busy = true; $('ta-send').disabled = true; $('ta-input').value = ''; autoGrow();
+                if (!history.length) $('ta-msgs').innerHTML = '';
+                history.push({ role: 'user', text: q }); bubble('user', esc(q).replace(/\n/g, '<br>'));
+                const typing = bubble('bot', '<span class="ta-typing"><span></span><span></span><span></span></span>');
+                let html, text;
+                try {
+                    if (apiKey()) { try { ({ html, text } = await aiAnswer(q)); } catch (e) { const b = await builtin(q); html = `<div class="text-[11px] text-amber-300 mb-1">AI unavailable (${esc(e.message)}) — answered with the built-in assistant.</div>` + b; text = strip(b); } }
+                    else { html = await builtin(q); text = strip(html); }
+                } catch (e) { console.error(e); html = `Sorry — something went wrong: ${esc(e.message || e)}`; text = html; }
+                typing.innerHTML = html; scrollDown();
+                history.push({ role: 'assistant', html, text: text.slice(0, 4000) }); saveHist();
+                busy = false; $('ta-send').disabled = false;
+            }
+            function autoGrow() { const i = $('ta-input'); i.style.height = 'auto'; i.style.height = Math.min(110, i.scrollHeight) + 'px'; }
+
+            // ---------- Shared data helpers ----------
+            function snap() { try { return window.tripSnapshot ? tripSnapshot() : null; } catch (e) { return null; } }
+            function tripStops() { const t = plannerState.trip; return t && t.stops ? t.stops.filter(s => s.place) : []; }
+            function tripCountries() { return [...new Set(tripStops().map(s => s.place.country).filter(c => c && c !== 'South Africa'))]; }
+            const ALL_COUNTRIES = () => Object.keys(COUNTRY_DB).map(n => [n, displayName(n)]).sort((a, b) => b[1].length - a[1].length);
+            function countriesIn(q) {
+                const low = ' ' + q.toLowerCase().replace(/[^\p{L}\s'-]/gu, ' ') + ' ', out = [];
+                const alias = { usa: 'United States of America', us: 'United States of America', america: 'United States of America', uk: 'United Kingdom', england: 'United Kingdom', britain: 'United Kingdom', holland: 'Netherlands', uae: 'United Arab Emirates', dubai: 'United Arab Emirates', bali: 'Indonesia', tanzania: 'United Republic of Tanzania', czechia: 'Czech Republic', 'south korea': 'South Korea', turkiye: 'Turkey' };
+                for (const [k, v] of Object.entries(alias)) if (low.includes(' ' + k + ' ') && COUNTRY_DB[v] && !out.includes(v)) out.push(v);
+                for (const [n, d] of ALL_COUNTRIES()) { const a = ' ' + d.toLowerCase() + ' ', b = ' ' + n.toLowerCase() + ' '; if ((low.includes(a) || low.includes(b)) && !out.includes(n)) out.push(n); }
+                return out;
+            }
+            // A place named after in/at/for/to ("weather in Beckum")
+            async function placeIn(q) {
+                const m = q.match(/\b(?:in|at|for|to|near|around)\s+([\p{L}][\p{L}\s.'’-]{1,40}?)(?=\s+(?:in|on|during|next|this|for|at|today|tomorrow|week|month)\b|[?.!,]|$)/iu);
+                const cand = m ? m[1].trim() : null; if (!cand) return null;
+                if (/^(my|the|our|a|an)\b/i.test(cand)) return null;
+                try { const p = await resolvePlace(cand); if (p) return { ...p, name: p.name || cand, country: p.country || (window.countryAt ? countryAt(p.lat, p.lng) : '') }; } catch (e) { }
+                return null;
+            }
+            const monthName = i => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i];
+            function monthsOf(q) { const m = q.toLowerCase().match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/); return m ? ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(m[1].slice(0, 3)) : null; }
+            const li = (txt, cls) => `<li${cls ? ` class="${cls}"` : ''}>${txt}</li>`;
+            const noTrip = `You haven't added any stops to the <b>Trip Builder</b> yet. Add stops (or type your trip into “Describe your trip”) and ask me again — or ask about a specific country, e.g. <i>“vaccinations for Kenya”</i>.`;
+
+            // ---------- Built-in engine ----------
+            async function builtin(q) {
+                const low = q.toLowerCase();
+                const has = rx => rx.test(low);
+                if (has(/\bflag|priorit|important items?|starred\b/) && has(/\bpack|item|list|flag/)) return flaggedItems();
+                if (has(/\bpack|forg[eo]t|missing|luggage|suitcase|bring|take with|carry[- ]?on\b/)) return await packingCheck();
+                if (has(/\bvaccin|inject|jab|shot|malaria|yellow fever|health|medic|prophyla|disease|clinic\b/)) return healthInfo(q);
+                if (has(/\bvisa|schengen|entry requirement|permit|eta\b|e-?visa|passport\b/)) return visaInfo(q);
+                if (has(/\bweather|temperature|rain|climate|forecast|hot|cold|monsoon|snow|sunny|humid\b/)) return await weatherInfo(q);
+                if (has(/\bemergency|police|ambulance|embassy|consulate\b/)) return emergencyInfo(q);
+                if (has(/\bsafe|crime|danger|scam|pickpocket\b/)) return safetyInfo(q);
+                if (has(/\bcurrency|money|cash|exchange|rand\b/)) return currencyInfo(q);
+                const ft = q.match(/\bfrom\s+(.+?)\s+to\s+(.+?)(?:[?.!]|$)/i) || q.match(/\bget\s+to\s+(.+?)\s+from\s+(.+?)(?:[?.!]|$)/i);
+                if (ft && has(/\b(get|go|travel|route|fly|train|drive|how|way)\b/)) return await routeBetween(...(/get\s+to/i.test(ft[0]) ? [ft[2], ft[1]] : [ft[1], ft[2]]));
+                if (has(/\broute|leg|itinerar|program|transfer|flight|train|travel plan|schedule|stops?\b/)) return routesSummary();
+                if (has(/\bwarning|check|ready|critical|risk|problem|issue|missed\b/)) return tripChecks();
+                const cs = countriesIn(q);
+                if (cs.length && has(/\btell me|about|info|overview|what.*like|best time|when\b/)) return countryOverview(cs[0]);
+                return await webLookup(q);
+            }
+
+            // Packing
+            function allItems() { return (plannerState.packingList || []).flatMap(c => (c.items || []).map(i => ({ ...i, cat: c.name, catPriority: c.priority }))); }
+            function flaggedItems() {
+                const items = allItems(), flagged = items.filter(i => i.priority || i.catPriority);
+                if (!items.length) return `Your packing list is empty. Open <a href="#" data-go="packing-page">Packing List</a> to add items, or ask me <i>“check my packing list”</i> for suggestions.`;
+                if (!flagged.length) return `None of your ${items.length} items are flagged. Click the <b>!</b> next to an item in your Packing List to flag it as a priority.`;
+                const left = flagged.filter(i => !i.packed);
+                return `<h4>Flagged items (${flagged.length})</h4><ul>${flagged.map(i => li(`${i.packed ? '✓ ' : ''}${esc(i.text)} <span class="text-gray-500 text-xs">· ${esc(i.cat)}</span>`, i.packed ? 'good' : 'bad')).join('')}</ul>${left.length ? `<b>${left.length}</b> still to pack.` : 'All flagged items are packed. ✓'}`;
+            }
+            const PLUGS = { 'United Kingdom': 'G', Ireland: 'G', Malta: 'G', Cyprus: 'G', 'Hong Kong': 'G', Singapore: 'G', Malaysia: 'G', 'United Arab Emirates': 'G (some C/D)', Qatar: 'G/D', Kenya: 'G', Uganda: 'G', 'United Republic of Tanzania': 'G/D', Zambia: 'G/C/D', Zimbabwe: 'G/D', Mauritius: 'C/G', Switzerland: 'J (C fits)', Liechtenstein: 'J (C fits)', Italy: 'L/F/C', 'United States of America': 'A/B', Canada: 'A/B', Mexico: 'A/B', Japan: 'A/B', Thailand: 'A/B/C/O', Philippines: 'A/B/C', Australia: 'I', 'New Zealand': 'I', China: 'A/C/I', Argentina: 'I/C', Brazil: 'N/C', India: 'C/D/M', Namibia: 'D/M', Botswana: 'D/G/M', Lesotho: 'M', Swaziland: 'M', Mozambique: 'C/F/M', Israel: 'H/C', Denmark: 'K/C/F', France: 'E/C', Belgium: 'E/C', 'Czech Republic': 'E/C', Poland: 'E/C', Slovakia: 'E/C' };
+            const plugOf = c => PLUGS[c] || (getCountryInfo(c).region === 'Europe' || /^EU$/.test(getCountryInfo(c).region) ? 'C/F' : null);
+            async function climateFor(stops) {
+                const out = [];
+                for (const s of stops.slice(0, 6)) {
+                    const c = s.place.country; if (!c) continue;
+                    try { const cl = await Promise.race([getClimate(c, countryPoint(c) || { lat: s.place.lat, lng: s.place.lng }), new Promise((_, r) => setTimeout(() => r(new Error('t')), 9000))]); out.push({ stop: s, c, cl }); } catch (e) { }
+                }
+                return out;
+            }
+            async function packingCheck() {
+                const items = allItems(), txt = items.map(i => i.text.toLowerCase()).join(' | ');
+                const hasItem = rx => rx.test(txt);
+                const sn = snap(), stops = tripStops(), cs = tripCountries();
+                const start = sn && sn.sched ? sn.sched.start : Date.now() + 30 * DAYMS, end = sn && sn.sched ? sn.sched.end : start + 14 * DAYMS;
+                const months = new Set(); for (let d = start; d <= end; d += DAYMS) months.add(new Date(d).getUTCMonth());
+                const health = cs.map(c => [c, window.countryHealth ? countryHealth(c) : {}]);
+                const longFlight = sn && sn.sched && sn.sched.legs.some(l => l.cache && l.cache.mode === 'flight' && (l.cache.air || l.cache.h) > 8);
+                const driving = sn && sn.sched && sn.sched.legs.some(l => l.cache && (l.cache.mode === 'car' || (l.cache.segs || []).some(sg => sg.mode === 'car' && !sg.xfer && sg.km > 80)));
+                let cold = false, hot = false, wet = false;
+                const cls = stops.length ? await climateFor(stops) : [];
+                cls.forEach(({ cl }) => [...months].forEach(m => { const x = cl.months[m]; if (!x) return; if (x.lo < 8) cold = true; if (x.hi > 26) hot = true; if (x.rain > 70 || x.wet > 8) wet = true; }));
+                const plugs = [...new Set(cs.map(plugOf).filter(Boolean))];
+                const needVisa = cs.some(c => ['VR', 'SCH', 'EV', 'ETA'].includes(getCountryInfo(c).status));
+                const RULES = [
+                    ['Documents', 'Passport', /passport/, cs.length], ['Documents', 'Copies of passport & visas (paper + phone)', /cop(y|ies)|scan/, cs.length],
+                    ['Documents', 'Visa / e-visa / ETA printout', /visa|schengen|\beta\b/, needVisa], ['Documents', 'Travel insurance certificate', /insur/, cs.length],
+                    ['Documents', 'Bank cards (tell your bank you’re travelling)', /card|bank|credit|debit/, true], ['Documents', `Some local cash${cs.length ? ` (${[...new Set(cs.map(c => getCountryInfo(c).currency).filter(Boolean))].join(', ')})` : ''}`, /cash|euro|dollar|currency|forex|money|\$|€|£/, cs.length],
+                    ['Documents', 'Flight / booking confirmations', /ticket|booking|itinerar|boarding|confirmation|e-ticket/, stops.length],
+                    ['Documents', 'Driver’s licence + International Driving Permit', /licen[cs]e|idp|driving permit/, driving],
+                    ['Documents', 'Yellow fever certificate (yellow card)', /yellow/, health.some(([, h]) => h.yfEntry || h.yfSA)],
+                    ['Electronics', 'Phone charger & cable', /charger|cable/, true], ['Electronics', `Plug adapter${plugs.length ? ` (type ${plugs.join(', ')})` : ''}`, /adapt|plug/, cs.length],
+                    ['Electronics', 'Power bank (carry-on only)', /power ?bank|battery pack|portable charger/, true], ['Electronics', 'Headphones', /head ?phones|ear ?buds|earphones|airpods/, longFlight],
+                    ['Health', 'Personal / prescription medication', /medic|pills|prescription|tablets/, true], ['Health', 'Small first-aid kit (plasters, painkillers, rehydration salts)', /first[- ]?aid|plaster|band-?aid|painkill|panado|ibupro/, true],
+                    ['Health', 'Sunscreen', /sunscreen|sun ?block|spf|sun ?cream/, hot || stops.length], ['Health', 'Insect repellent (DEET)', /repellent|deet|mosquito|tabard|peaceful sleep/, health.some(([, h]) => h.malaria) || hot],
+                    ['Health', 'Antimalarials (see a travel clinic)', /malari|doxy|malanil|atovaquone/, health.some(([, h]) => h.malaria)], ['Health', 'Hand sanitiser', /saniti[sz]/, true],
+                    ['Toiletries', 'Toothbrush & toothpaste', /tooth/, true], ['Toiletries', 'Deodorant', /deo/, true], ['Toiletries', 'Liquids in 100 ml bottles + clear bag (carry-on)', /100 ?ml|liquids|ziplock|clear bag|travel size/, stops.some(s => true)],
+                    ['Clothing', 'Warm jacket / fleece', /jacket|coat|fleece|jersey|sweater|hoodie|puffer/, cold], ['Clothing', 'Rain jacket or compact umbrella', /rain|umbrella|poncho|waterproof/, wet],
+                    ['Clothing', 'Swimwear', /swim|bikini|costume|trunks|cozzie/, hot], ['Clothing', 'Comfortable walking shoes', /shoe|sneaker|takkies|boots|trainers/, true], ['Clothing', 'Sleepwear', /pyjama|pajama|sleepwear|pj/, true],
+                    ['Carry-on', 'Neck pillow & eye mask', /pillow|eye ?mask/, longFlight], ['Carry-on', 'Reusable water bottle', /bottle/, true], ['Carry-on', 'Pen (arrival forms)', /\bpen\b/, cs.length]
+                ];
+                const miss = RULES.filter(r => r[3] && !hasItem(r[2]));
+                const byCat = {}; miss.forEach(r => (byCat[r[0]] = byCat[r[0]] || []).push(r[1]));
+                const unpacked = items.filter(i => !i.packed), flaggedLeft = items.filter(i => (i.priority || i.catPriority) && !i.packed);
+                const why = [cold && 'cold nights at some stops', hot && 'hot days', wet && 'rainy weather', health.some(([, h]) => h.malaria) && 'malaria risk', longFlight && 'a long-haul flight', driving && 'driving legs'].filter(Boolean);
+                let h = `<h4>Packing check</h4>${items.length ? `You have <b>${items.length}</b> items, <b>${items.length - unpacked.length}</b> packed.` : 'Your packing list is empty.'}${stops.length ? ` Checked against your trip to <b>${esc(cs.map(displayName).join(', ') || 'your stops')}</b>${why.length ? ` (${why.join(', ')})` : ''}.` : ' Add trip stops so I can tailor this to your destinations and weather.'}`;
+                if (!miss.length) h += `<div class="mt-2">Nothing obvious is missing. ✓</div>`;
+                else h += `<h4>Possibly missing (${miss.length})</h4>` + Object.entries(byCat).map(([c, l]) => `<div class="text-[11px] text-gray-400 mt-1">${c}</div><ul>${l.map(x => li(esc(x), 'warn')).join('')}</ul>`).join('');
+                if (flaggedLeft.length) h += `<h4>Flagged, not packed yet</h4><ul>${flaggedLeft.map(i => li(esc(i.text), 'bad')).join('')}</ul>`;
+                h += `<div class="mt-2"><button class="ta-add-missing gradient-btn text-xs px-3 py-1.5 rounded-lg" data-items='${esc(JSON.stringify(miss.map(r => [r[0], r[1]])))}' ${miss.length ? '' : 'hidden'}>+ Add missing items to my list</button></div>`;
+                return h;
+            }
+            function addMissing(list) {
+                const map = { Documents: 'documentation', Electronics: 'electronics', Health: 'health', Toiletries: 'toiletries', Clothing: 'clothing', 'Carry-on': 'carryon' };
+                let n = 0;
+                list.forEach(([cat, text]) => { const c = plannerState.packingList.find(x => x.id === map[cat]) || plannerState.packingList.find(x => x.id === 'misc'); if (c && !c.items.some(i => i.text.toLowerCase() === text.toLowerCase())) { c.items.push({ text, packed: false, priority: false }); n++; } });
+                savePlannerState(); if (typeof renderPackingList === 'function') try { renderPackingList(); } catch (e) { }
+                showMessage(`${n} item${n === 1 ? '' : 's'} added to your packing list`);
+            }
+
+            // Health
+            function healthInfo(q) {
+                const cs = countriesIn(q).length ? countriesIn(q) : tripCountries();
+                if (!cs.length) return noTrip;
+                let h = `<h4>Vaccinations & health</h4>`;
+                cs.forEach(c => {
+                    const x = countryHealth(c), info = getCountryInfo(c), dev = x.developed || /Europe|EU/.test(info.region);
+                    const items = [];
+                    if (x.yfEntry) items.push(li(`<b>Yellow fever vaccine</b> — certificate likely required to enter. Get it at an approved clinic ≥10 days before you leave.`, 'bad'));
+                    if (x.yfSA) items.push(li(`<b>Yellow fever certificate needed to come back into South Africa</b> after visiting.`, 'bad'));
+                    if (x.malaria) items.push(li(`<b>Malaria</b>${x.malariaLocal ? ` (${esc(x.malariaLocal)})` : ''} — see a travel clinic 4–6 weeks before about antimalarials; use DEET and sleep under nets.`, 'warn'));
+                    if (!dev) { items.push(li(`<b>Hepatitis A</b> and <b>typhoid</b> recommended (food & water).`, 'warn')); items.push(li(`Consider <b>hepatitis B</b>; <b>rabies</b> if you'll be around animals or far from clinics.`)); }
+                    items.push(li(`Routine vaccines up to date: <b>MMR</b>, <b>tetanus/diphtheria</b>${dev ? '' : ', polio'}; flu / COVID boosters as advised.`, dev ? 'good' : ''));
+                    h += `<div class="mt-2 font-semibold">${flagImg ? flagImg(c, 'flag') : ''} ${esc(displayName(c))}</div><ul>${items.join('')}</ul>`;
+                });
+                h += `<div class="src">General guidance for South African travellers — confirm with a travel clinic (e.g. Netcare Travel Clinics) 4–8 weeks before departure.</div>`;
+                return h;
+            }
+
+            // Visas
+            function visaInfo(q) {
+                const cs = countriesIn(q).length ? countriesIn(q) : tripCountries();
+                if (!cs.length) return noTrip;
+                const sch = cs.filter(c => (COUNTRY_DB[c] || {}).schengen === 'member' || (COUNTRY_DB[c] || {}).schengen === 'via');
+                let h = `<h4>Visas for a South African passport</h4><ul>`;
+                cs.forEach(c => {
+                    const i = getCountryInfo(c), m = VISA_META[i.status] || VISA_META.VR;
+                    const cls = ['VF', 'VOA', 'HOME'].includes(i.status) ? 'good' : ['ETA', 'EV'].includes(i.status) ? 'warn' : 'bad';
+                    h += li(`<b>${esc(displayName(c))}</b> — <span style="color:${m.color}">${esc(m.label)}</span>${i.stay ? ` · ${esc(i.stay)}` : ''}<br><span class="text-gray-400 text-xs">${esc(i.note)}</span>${getVisaUrl(c) ? ` <a href="${getVisaUrl(c)}" target="_blank" rel="noopener" class="text-xs">official info ↗</a>` : ''}`, cls);
+                });
+                h += `</ul>`;
+                if (sch.length) h += `<h4>Schengen</h4>One visa covers ${sch.length > 1 ? `all of ${esc(sch.map(displayName).join(', '))}` : esc(displayName(sch[0]))} (max 90 days in any 180). Apply at the embassy/VFS of your main destination, up to 6 months and at least ~3–4 weeks before you travel.<br><b>Typical cost:</b> €90 visa fee for adults (€45 for ages 6–11) plus a VFS service fee — about R2,200–R2,600 in total. <span class="text-gray-400 text-xs">Fees change; confirm on the VFS site.</span>`;
+                const others = cs.filter(c => !sch.includes(c) && !['VF', 'VOA', 'HOME'].includes(getCountryInfo(c).status));
+                if (others.length) h += `<div class="mt-2">${apiKey() ? '' : `For current fees for ${esc(others.map(displayName).join(', '))}, check the official links above, or add an AI key (⚙) so I can search the web live.`}</div>`;
+                return h;
+            }
+
+            // Weather
+            async function forecast(p) {
+                const j = await fetchJson(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat.toFixed(3)}&longitude=${p.lng.toFixed(3)}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weathercode&timezone=auto&forecast_days=7`, 9000);
+                const icon = c => c === 0 ? '☀️' : c <= 2 ? '🌤' : c === 3 ? '☁️' : c <= 48 ? '🌫' : c <= 67 ? '🌧' : c <= 77 ? '❄️' : c <= 82 ? '🌦' : c <= 86 ? '🌨' : '⛈';
+                return `<table><tr><th>Day</th><th></th><th>High / low</th><th>Rain</th></tr>${j.daily.time.map((d, i) => `<tr><td>${new Date(d + 'T12:00').toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric' })}</td><td>${icon(j.daily.weathercode[i])}</td><td>${Math.round(j.daily.temperature_2m_max[i])}° / ${Math.round(j.daily.temperature_2m_min[i])}°</td><td>${j.daily.precipitation_probability_max[i] ?? '–'}%</td></tr>`).join('')}</table>`;
+            }
+            function climateRow(cl, m) { const x = cl.months[m]; return `${monthName(m)}: <b>${Math.round(x.hi)}° / ${Math.round(x.lo)}°</b>, ~${Math.round(x.rain)} mm rain over ~${Math.round(x.wet)} wet days`; }
+            async function weatherInfo(q) {
+                const p = await placeIn(q), cs = countriesIn(q), mo = monthsOf(q);
+                const wantsNow = /\b(now|today|tomorrow|this week|forecast|next few days|currently)\b/i.test(q);
+                // Specific place or country asked about
+                if (p || cs.length) {
+                    const place = p || (() => { const pt = countryPoint(cs[0]); return pt ? { name: pt.label, lat: pt.lat, lng: pt.lng, country: cs[0] } : null; })();
+                    if (!place) return `I couldn't locate that place.`;
+                    const c = place.country || cs[0];
+                    let h = `<h4>Weather · ${esc(place.name)}${c ? `, ${esc(displayName(c))}` : ''}</h4>`;
+                    if (mo == null || wantsNow) { try { h += `<div class="text-xs text-gray-400 mb-1">7-day forecast</div>` + await forecast(place); } catch (e) { h += `<div class="text-gray-400">Live forecast unavailable right now.</div>`; } }
+                    if (mo != null || !wantsNow) {
+                        try { const cl = await getClimate(c || place.name, { lat: place.lat, lng: place.lng, label: place.name }); const ms = mo != null ? [mo] : [new Date().getMonth(), (new Date().getMonth() + 1) % 12]; h += `<div class="text-xs text-gray-400 mt-2 mb-1">Typical (2020–2024 averages)</div><ul>${ms.map(m => li(climateRow(cl, m))).join('')}</ul>`; } catch (e) { }
+                        if (c) { const hz = hazardsFor(c).filter(x => mo == null || x.months.includes(mo)); if (hz.length) h += `<ul>${hz.map(x => li(`⚠ <b>${esc(x.type)}</b> season: ${esc(x.range)}`, 'warn')).join('')}</ul>`; }
+                    }
+                    return h;
+                }
+                // The user's trip
+                const sn = snap(); if (!sn || !sn.sched || !sn.sched.stays.length) return noTrip;
+                let h = `<h4>Weather on your trip</h4><ul>`;
+                const now = Date.now();
+                for (const st of sn.sched.stays.slice(0, 8)) {
+                    const pl = st.stop.place, c = pl.country, m = new Date(st.checkin).getUTCMonth();
+                    let line = `<b>${esc(pl.name)}</b> <span class="text-gray-400 text-xs">${sn.fmtDate(st.checkin)}${st.nights ? ` · ${st.nights}n` : ''}</span><br>`;
+                    try { const cl = await getClimate(c || pl.name, { lat: pl.lat, lng: pl.lng, label: pl.name }); line += climateRow(cl, m); const x = cl.months[m]; line += x.lo < 8 ? ' — <i>pack warm layers</i>' : x.hi > 28 ? ' — <i>hot: sun protection</i>' : ''; } catch (e) { line += '<span class="text-gray-400">climate data unavailable</span>'; }
+                    const hz = c ? hazardsFor(c).filter(x => x.months.includes(m)) : []; if (hz.length) line += `<br>⚠ ${hz.map(x => esc(x.type)).join(', ')} season`;
+                    if (st.checkin - now < 6 * DAYMS && st.checkout > now) line += `<br><span class="text-emerald-300 text-xs">Within forecast range — ask “forecast for ${esc(pl.name)}”.</span>`;
+                    h += li(line);
+                }
+                return h + `</ul><div class="src">Typical conditions from Open-Meteo ERA5 (2020–2024); live forecasts are available up to 7 days ahead.</div>`;
+            }
+
+            // Routes
+            function routesSummary() {
+                const sn = snap(); if (!sn || !sn.sched || (!sn.sched.legs.length && !sn.sched.stays.length)) return noTrip;
+                const t = sn.trip, legs = sn.sched.legs;
+                const pending = legs.filter(l => !l.cache).length;
+                let h = `<h4>Your trip</h4>${t.homePlace ? `From <b>${esc(t.homePlace.name)}</b> · ` : ''}${sn.fmtDate(sn.sched.start, { year: 'numeric' })} → ${sn.fmtDate(sn.sched.end, { year: 'numeric' })} · ${Math.round((sn.sched.end - sn.sched.start) / DAYMS)} days · ${sn.workingDays} working days of leave<h4>Travel legs</h4><ul>`;
+                legs.forEach(l => { const c = l.cache; h += li(`<b>${esc(l.from.name)} → ${esc(l.to.name)}</b> <span class="text-gray-400 text-xs">${sn.fmtDate(l.dep)} ${sn.fmtTime(l.dep)}</span><br>${c ? `${esc(c.title)} · ~${fmtH(c.h)} · ${fmtKm(c.km)}` : '<span class="text-gray-400">calculating…</span>'}${l.leg.booked ? ' · <span class="text-emerald-300">booked ✓</span>' : ' · <span class="text-amber-300">not booked</span>'}`, l.leg.booked ? 'good' : 'warn'); });
+                h += `</ul>`;
+                const stays = sn.sched.stays.filter(s => s.nights > 0);
+                if (stays.length) h += `<h4>Stays</h4><ul>${stays.map(s => li(`<b>${esc(s.stop.place.name)}</b> — ${s.nights} night${s.nights === 1 ? '' : 's'}${s.stop.stay.name ? ` at ${esc(s.stop.stay.name)}` : ''}${s.stop.stay.booked ? ' ✓' : ' <span class="text-amber-300 text-xs">(not booked)</span>'}`, s.stop.stay.booked ? 'good' : 'warn')).join('')}</ul>`;
+                const long = legs.filter(l => l.cache && l.cache.h > 16);
+                if (long.length) h += `<div class="mt-1">⚠ Long travel day${long.length > 1 ? 's' : ''}: ${long.map(l => `${esc(l.from.name)} → ${esc(l.to.name)} (${fmtH(l.cache.h)})`).join(', ')}.</div>`;
+                if (pending) h += `<div class="text-xs text-gray-400 mt-1">${pending} leg(s) still being calculated — ask again in a moment.</div>`;
+                return h;
+            }
+            async function routeBetween(a, b) {
+                a = a.trim().replace(/[?.!]+$/, ''); b = b.trim().replace(/[?.!]+$/, '');
+                const A = await resolvePlace(a), B = await resolvePlace(b);
+                if (!A || !B) return `I couldn't find ${!A ? `“${esc(a)}”` : `“${esc(b)}”`}. Try a town or city name.`;
+                let opts = []; try { opts = await computeRouteOptions(A, B); } catch (e) { }
+                if (!opts.length) return `No route options found between ${esc(A.name)} and ${esc(B.name)}.`;
+                return `<h4>${esc(A.name)} → ${esc(B.name)}</h4><ul>${opts.slice(0, 5).map((r, i) => li(`${i === 0 ? '★ ' : ''}<b>${esc(r.title)}</b> — ~${fmtH(r.h)} · ${fmtKm(r.km)} · ~${r.co2} kg CO₂<br><span class="text-gray-400 text-xs">${esc(r.detail)}</span>${r.book ? ` <a href="${r.book}" target="_blank" rel="noopener" class="text-xs">book ↗</a>` : ''}`)).join('')}</ul><div class="text-xs text-gray-400">Estimates. Use <b>Route Explorer</b> or right-click the map for the animated version.</div>`;
+            }
+            function tripChecks() {
+                const sn = snap(); if (!sn || !sn.checks || !sn.checks.length) return noTrip;
+                const crit = sn.checks.filter(c => c.sev === 'crit'), high = sn.checks.filter(c => c.sev === 'high');
+                let h = '';
+                if (crit.length) h += `<h4>Critical (${crit.length})</h4><ul>${crit.map(c => li(`<b>${esc(strip(c.title))}</b><br><span class="text-xs text-gray-300">${esc(strip(c.body))}</span>`, 'bad')).join('')}</ul>`;
+                if (high.length) h += `<h4>Important (${high.length})</h4><ul>${high.slice(0, 10).map(c => li(`<b>${esc(strip(c.title))}</b><br><span class="text-xs text-gray-300">${esc(strip(c.body))}</span>`, 'warn')).join('')}</ul>`;
+                return h || `No critical or important warnings for your trip. ✓`;
+            }
+            function emergencyInfo(q) {
+                const cs = countriesIn(q).length ? countriesIn(q) : tripCountries(); if (!cs.length) return noTrip;
+                return `<h4>Emergency numbers</h4><ul>${cs.map(c => li(`<b>${esc(displayName(c))}</b>: ${esc(countryHealth(c).emergency)}`)).join('')}</ul>DIRCO 24-hour consular emergency line: <b>+27 12 351 1000</b>. Register your trip on DIRCO's ROSA before you go.`;
+            }
+            function safetyInfo(q) {
+                const cs = countriesIn(q).length ? countriesIn(q) : tripCountries(); if (!cs.length) return noTrip;
+                return `<h4>Safety</h4><ul>${cs.map(c => { const x = countryHealth(c); return li(`<b>${esc(displayName(c))}</b> — level ${x.safety}: ${esc(x.safetyTxt)}${x.crime ? `<br><span class="text-xs text-gray-300">${esc(x.crime)}</span>` : ''}`, x.safety >= 3 ? 'bad' : x.safety === 2 ? 'warn' : 'good'); }).join('')}</ul><div class="src">Indicative levels. Check DIRCO and current travel advisories before you go.</div>`;
+            }
+            function currencyInfo(q) {
+                const cs = countriesIn(q).length ? countriesIn(q) : tripCountries(); if (!cs.length) return noTrip;
+                return `<h4>Money</h4><ul>${cs.map(c => li(`<b>${esc(displayName(c))}</b>: ${esc(getCountryInfo(c).currency || '—')}`)).join('')}</ul>Live exchange rates are on each country's panel on the Travel Map. Tell your bank you're travelling and carry two cards in separate places.`;
+            }
+            function countryOverview(c) {
+                const i = getCountryInfo(c), m = VISA_META[i.status] || VISA_META.VR, x = countryHealth(c);
+                return `<h4>${esc(displayName(c))}</h4><ul>${li(`<b>Visa:</b> ${esc(m.label)}${i.stay ? ` (${esc(i.stay)})` : ''} — ${esc(i.note)}`)}${li(`<b>Best time:</b> ${esc(i.best || '—')}`)}${li(`<b>Currency:</b> ${esc(i.currency || '—')}`)}${li(`<b>Health:</b> ${[x.yfEntry && 'yellow fever certificate', x.malaria && 'malaria risk', !x.developed && 'Hep A/typhoid advised'].filter(Boolean).join(', ') || 'routine vaccines'}`)}${li(`<b>Safety:</b> level ${x.safety} — ${esc(x.safetyTxt)}`)}${li(`<b>Emergency:</b> ${esc(x.emergency)}`)}</ul>`;
+            }
+
+            // Web lookup (Wikipedia + DuckDuckGo instant answers; no key needed)
+            async function webLookup(q) {
+                const query = q.replace(/^(what|who|where|when|how|why|is|are|can|do|does|tell me|search|look up|find)\b\s*(is|are|about|for)?\s*/i, '').replace(/[?]+$/, '') || q;
+                let h = '', srcs = [];
+                try {
+                    const d = await fetchJson(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`, 6000);
+                    if (d && d.AbstractText) { h += `<p>${esc(d.AbstractText.slice(0, 700))}</p>`; if (d.AbstractURL) srcs.push([d.AbstractSource || 'Source', d.AbstractURL]); }
+                } catch (e) { }
+                try {
+                    const s = await fetchJson(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=3`, 7000);
+                    const hits = (s.query && s.query.search) || [];
+                    if (hits.length && !h) {
+                        const sum = await fetchJson(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hits[0].title.replace(/ /g, '_'))}`, 7000).catch(() => null);
+                        h += `<p><b>${esc(hits[0].title)}</b> — ${esc((sum && sum.extract) || strip(hits[0].snippet)).slice(0, 700)}</p>`;
+                    }
+                    hits.forEach(x => srcs.push([`Wikipedia: ${x.title}`, `https://en.wikipedia.org/wiki/${encodeURIComponent(x.title.replace(/ /g, '_'))}`]));
+                } catch (e) { }
+                if (!h) h = `I couldn't find a quick answer to that offline.`;
+                if (srcs.length) h += `<div class="src">Sources: ${srcs.slice(0, 4).map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(t)}</a>`).join(' · ')}</div>`;
+                if (!apiKey()) h += `<div class="text-[11px] text-gray-500 mt-2">For a full web-searched answer, add an AI key under ⚙.</div>`;
+                return h;
+            }
+
+            // ---------- AI engine (Claude + web search) ----------
+            function contextJson() {
+                const sn = snap(), t = plannerState.trip || {};
+                const ctx = { today: new Date().toISOString().slice(0, 10), traveller: { passport: 'South African', passportExpiry: t.passport || null, travellers: t.travellers || 1, leaveDaysAvailable: plannerState.details && plannerState.details.availableLeaveDays || null } };
+                if (sn && sn.sched) {
+                    ctx.trip = {
+                        home: t.homePlace ? `${t.homePlace.name}, ${t.homePlace.country || ''}` : null, start: new Date(sn.sched.start).toISOString().slice(0, 10), end: new Date(sn.sched.end).toISOString().slice(0, 10),
+                        stays: sn.sched.stays.map(s => ({ place: s.stop.place.name, country: s.stop.place.country, checkin: new Date(s.checkin).toISOString().slice(0, 10), nights: s.nights, accommodation: s.stop.stay.name || null, booked: !!s.stop.stay.booked })),
+                        legs: sn.sched.legs.map(l => ({ from: l.from.name, to: l.to.name, depart: new Date(l.dep).toISOString().slice(0, 16), option: l.cache ? l.cache.title : null, hours: l.cache ? +l.cache.h.toFixed(1) : null, km: l.cache ? Math.round(l.cache.km) : null, booked: !!l.leg.booked, ref: l.leg.ref || null })),
+                        warnings: (sn.checks || []).filter(c => c.sev !== 'ok').slice(0, 30).map(c => `[${c.sev}] ${strip(c.title)}: ${strip(c.body).slice(0, 220)}`)
+                    };
+                    ctx.countries = tripCountries().map(c => { const i = getCountryInfo(c); return { country: displayName(c), visaForSA: (VISA_META[i.status] || {}).label, stay: i.stay, note: i.note, currency: i.currency, ...countryHealth(c) }; });
+                }
+                ctx.packingList = (plannerState.packingList || []).map(c => ({ category: c.name, flaggedCategory: !!c.priority, items: (c.items || []).map(i => `${i.text}${i.packed ? ' [packed]' : ''}${i.priority ? ' [FLAGGED]' : ''}`) })).filter(c => c.items.length);
+                ctx.sitesToVisit = (plannerState.sitesToVisit || []).slice(0, 40).map(s => `${s.name}${s.country ? ' (' + s.country + ')' : ''}`);
+                return JSON.stringify(ctx);
+            }
+            const SYSTEM = `You are Atlas, the travel assistant inside "My Travel App", a personal travel map and trip planner. The user is a South African passport holder based in Cape Town. You can see their current trip, travel legs, warnings, packing list (items marked [FLAGGED] are priority items) and saved sites in the JSON below.
+Help with: checking their routes and timings, what's missing from their packing list for these destinations and dates, flagged items, vaccinations and health precautions, visa requirements AND current visa fees for South Africans, weather, safety, money and practical travel questions.
+Use web search for anything current or specific (visa fees and processing times, entry rules, travel advisories, events, prices, schedules), and prefer official sources (embassies, VFS, government sites, WHO/CDC/NICD). Give fees in the local currency and approximate ZAR.
+Be concise and practical: short paragraphs or bullet lists, bold key facts, no long preambles. Tell the user when something should be double-checked with an official source. Today's date is in the JSON.`;
+            async function aiAnswer(q) {
+                const model = localStorage.getItem(LS_MODEL) || 'claude-sonnet-5-5';
+                const turns = history.slice(-12).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text || ' ' }));
+                while (turns.length && turns[0].role !== 'user') turns.shift();
+                const messages = turns.length ? turns : [{ role: 'user', content: q }];
+                const body = { model, max_tokens: 1800, system: SYSTEM + '\n\nAPP DATA:\n' + contextJson(), messages, tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }] };
+                let content = [], guard = 0;
+                while (guard++ < 4) {
+                    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 90000);
+                    let r;
+                    try { r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json', 'x-api-key': apiKey(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify(body) }); }
+                    finally { clearTimeout(tm); }
+                    const j = await r.json().catch(() => ({}));
+                    if (!r.ok) throw new Error(j.error && j.error.message ? j.error.message : 'HTTP ' + r.status);
+                    content = content.concat(j.content || []);
+                    if (j.stop_reason === 'pause_turn') { body.messages = messages.concat([{ role: 'assistant', content: j.content }]); continue; }
+                    break;
+                }
+                const texts = content.filter(b => b.type === 'text');
+                const text = texts.map(b => b.text).join('');
+                const srcs = []; texts.forEach(b => (b.citations || []).forEach(c => { if (c.url && !srcs.some(s => s[1] === c.url)) srcs.push([c.title || c.url, c.url]); }));
+                const searched = content.some(b => b.type === 'server_tool_use');
+                let html = md(text || 'No answer returned.');
+                if (srcs.length) html += `<div class="src">${searched ? '🔎 Searched the web · ' : ''}Sources: ${srcs.slice(0, 6).map(([t, u], i) => `<a href="${esc(u)}" target="_blank" rel="noopener">${i + 1}. ${esc(String(t).slice(0, 60))}</a>`).join(' · ')}</div>`;
+                return { html, text };
+            }
+            // Minimal markdown → HTML
+            function md(s) {
+                const lines = esc(s).split('\n'); let out = '', inList = false;
+                const inline = t => t.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*(?!\s)(.+?)\*(?!\*)/g, '$1<i>$2</i>').replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+                lines.forEach(l => {
+                    const m = l.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)/);
+                    if (m) { if (!inList) { out += '<ul>'; inList = true; } out += `<li>${inline(m[1])}</li>`; return; }
+                    if (inList) { out += '</ul>'; inList = false; }
+                    const hd = l.match(/^#{1,4}\s+(.*)/);
+                    if (hd) out += `<h4>${inline(hd[1])}</h4>`; else if (l.trim()) out += `<p class="mb-1">${inline(l)}</p>`;
+                });
+                if (inList) out += '</ul>';
+                return out;
+            }
+
+            // ---------- Wiring ----------
+            document.addEventListener('DOMContentLoaded', () => {
+                renderChips();
+                $('ta-fab').onclick = open; $('ta-close').onclick = close;
+                $('ta-gear').onclick = () => { const s = $('ta-settings'); s.classList.toggle('hidden'); $('ta-key').value = apiKey(); $('ta-model').value = localStorage.getItem(LS_MODEL) || 'claude-sonnet-5-5'; };
+                $('ta-key-save').onclick = () => { const k = $('ta-key').value.trim(); if (k && !/^sk-ant-/.test(k)) { showMessage('That doesn\'t look like an Anthropic key (starts with sk-ant-)', 'error'); return; } localStorage.setItem(LS_KEY, k); localStorage.setItem(LS_MODEL, $('ta-model').value); setMode(); $('ta-settings').classList.add('hidden'); showMessage(k ? 'AI mode on — Atlas can now search the web' : 'Key cleared'); };
+                $('ta-key-del').onclick = () => { localStorage.removeItem(LS_KEY); $('ta-key').value = ''; setMode(); showMessage('AI key removed — using the built-in assistant'); };
+                $('ta-clear').onclick = () => { history = []; saveHist(); renderHistory(); };
+                $('ta-form').onsubmit = e => { e.preventDefault(); ask($('ta-input').value); };
+                $('ta-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask($('ta-input').value); } });
+                $('ta-input').addEventListener('input', autoGrow);
+                $('ta-msgs').addEventListener('click', e => {
+                    const add = e.target.closest('.ta-add-missing'); if (add) { try { addMissing(JSON.parse(add.dataset.items)); add.disabled = true; add.textContent = 'Added ✓'; } catch (err) { } return; }
+                    const go = e.target.closest('[data-go]'); if (go) { e.preventDefault(); switchPage(go.dataset.go); close(); }
+                });
+                document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('ta-panel').classList.contains('hidden') && document.activeElement && $('ta-panel').contains(document.activeElement)) close(); });
+            });
+            window.atlasAsk = q => { open(); ask(q); };
         })();
     </script>
 </body>
