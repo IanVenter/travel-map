@@ -4409,7 +4409,7 @@ Caribbean|JM|18.00|-72.00|5`;
             for (const p of list) { if (out.some(o => o.n === p.n && Math.abs(o.lat - p.lat) < 0.05 && Math.abs(o.lng - p.lng) < 0.05)) continue; out.push(p); if (out.length >= limit) break; }
             return out;
         }
-        window.gazCandidates = gazCandidates;
+        window.gazCandidates = gazCandidates; window.levBounded = levBounded;
         function gazInBounds(bounds, limit = 900) {
             if (!GAZ.loaded) return [];
             const out = [], s = Math.floor(bounds.getSouth() * 2), n = Math.floor(bounds.getNorth() * 2), w = Math.floor(bounds.getWest() * 2), e = Math.floor(bounds.getEast() * 2);
@@ -6364,24 +6364,108 @@ Caribbean|JM|18.00|-72.00|5`;
             const noTrip = `You haven't added any stops to the <b>Trip Builder</b> yet. Add stops (or type your trip into “Describe your trip”) and ask me again — or ask about a specific country, e.g. <i>“vaccinations for Kenya”</i>.`;
 
             // ---------- Built-in engine ----------
-            async function builtin(q) {
-                const low = q.toLowerCase();
+            // Typo-tolerant understanding: correct words against the vocabulary the assistant knows
+            const VOCAB = ('clothing clothes toiletries toiletry documents documentation electronics gadgets chargers health medicine medication carry miscellaneous ' +
+                'packing packed unpacked items item luggage suitcase forgot missing flagged flag priority checklist list added ' +
+                'vaccination vaccinations vaccines injections malaria yellow fever visa visas schengen passport weather temperature forecast climate rain ' +
+                'route routes travel legs itinerary flights flight train trains transfer transfers stops warnings critical emergency safety crime currency money ' +
+                'sites visit visited wishlist countries budget tasks notes leave holiday trip departure leaving return accommodation hotel booked').split(' ');
+            function correct(q) {
+                return q.toLowerCase().replace(/[^\p{L}\p{N}\s'’-]/gu, ' ').split(/\s+/).filter(Boolean).map(w => {
+                    if (w.length < 4 || VOCAB.includes(w)) return w;
+                    const max = w.length <= 5 ? 1 : 2; let best = null, bd = 9;
+                    for (const v of VOCAB) { if (Math.abs(v.length - w.length) > max || v[0] !== w[0]) continue; const d = window.levBounded(v, w, max); if (d < bd) { bd = d; best = v; } }
+                    return best && bd <= max ? best : w;
+                }).join(' ');
+            }
+            const CAT_WORDS = { toiletries: /toiletr|hygien|wash ?bag/, documentation: /document|docs?\b|papers/, electronics: /electronic|gadget|charger|tech\b|device/, clothing: /cloth|wear|outfit|garment/, health: /health|first[- ]?aid|medic|meds\b|pharmac/, carryon: /carry|hand luggage|cabin/, misc: /misc|other/ };
+            function categoryIn(low) {
+                for (const c of plannerState.packingList || []) { const rx = CAT_WORDS[c.id]; if ((rx && rx.test(low)) || low.includes(c.name.toLowerCase())) return c; }
+                return null;
+            }
+            async function builtin(qRaw) {
+                const low = correct(qRaw), q = qRaw;
                 const has = rx => rx.test(low);
-                if (has(/\bflag|priorit|important items?|starred\b/) && has(/\bpack|item|list|flag/)) return flaggedItems();
-                if (has(/\bpack|forg[eo]t|missing|luggage|suitcase|bring|take with|carry[- ]?on\b/)) return await packingCheck();
-                if (has(/\bvaccin|inject|jab|shot|malaria|yellow fever|health|medic|prophyla|disease|clinic\b/)) return healthInfo(q);
-                if (has(/\bvisa|schengen|entry requirement|permit|eta\b|e-?visa|passport\b/)) return visaInfo(q);
+                const personal = has(/\b(my|mine|i|i've|ive|me|did i|have i|do i|am i)\b/);
+                const askList = has(/\b(what|which|show|list|tell|see|how many|do i have|did i)\b/);
+                // Help
+                if (has(/^(help|hi|hello|hey)\b|what can you do|how do you work/)) return helpHtml();
+                // Packing list contents (by category, packed / unpacked / flagged)
+                const cat = categoryIn(low);
+                if (has(/\bflag|priorit|starred\b/) && (has(/\bpack|item|list|luggage/) || personal)) return flaggedItems();
+                if (has(/\bforgot|missing|need to (bring|pack)|should i (bring|pack)|what else|check (my )?pack/)) return await packingCheck(cat);
+                if ((cat && (askList || personal)) || (has(/\bitems?|packed|unpacked|packing|luggage|suitcase\b/) && (askList || personal))) return listItems(cat, low);
+                if (has(/\bpack|luggage|suitcase|bring|carry\b/)) return await packingCheck();
+                // Health, visas, weather, safety…
+                if (has(/\bvaccin|inject|jab|shots?\b|malaria|yellow fever|health|prophyla|disease|clinic\b/)) return healthInfo(q);
+                if (has(/\bvisas?\b|schengen|entry requirement|permit|\beta\b|e-?visa|passport\b/)) return visaInfo(q);
                 if (has(/\bweather|temperature|rain|climate|forecast|hot|cold|monsoon|snow|sunny|humid\b/)) return await weatherInfo(q);
                 if (has(/\bemergency|police|ambulance|embassy|consulate\b/)) return emergencyInfo(q);
-                if (has(/\bsafe|crime|danger|scam|pickpocket\b/)) return safetyInfo(q);
-                if (has(/\bcurrency|money|cash|exchange|rand\b/)) return currencyInfo(q);
+                if (has(/\bsafe|safety|crime|danger|scam|pickpocket\b/)) return safetyInfo(q);
+                if (has(/\bcurrency|money|cash|exchange|rand\b/) && !has(/\bbudget/)) return currencyInfo(q);
+                // Personal lists
+                if (has(/\bsites?\b|places to (visit|see)|attraction|landmark|pinned\b/)) return sitesList(q);
+                if (has(/\bvisited|wish ?list|wishlist|been to|countries\b/) && personal) return countriesList(low);
+                if (has(/\bbudget|cost|spend|spent|expens/) && personal) return budgetInfo();
+                if (has(/\btasks?\b|to-?do|notes?\b|checklist\b/) && personal) return tasksInfo();
+                if (has(/\bwhen|how long|how many days|days until|countdown|depart|leaving|leave|return|get back|dates?\b/) && (personal || has(/\btrip\b/))) return tripDates(low);
+                // Routes
                 const ft = q.match(/\bfrom\s+(.+?)\s+to\s+(.+?)(?:[?.!]|$)/i) || q.match(/\bget\s+to\s+(.+?)\s+from\s+(.+?)(?:[?.!]|$)/i);
-                if (ft && has(/\b(get|go|travel|route|fly|train|drive|how|way)\b/)) return await routeBetween(...(/get\s+to/i.test(ft[0]) ? [ft[2], ft[1]] : [ft[1], ft[2]]));
-                if (has(/\broute|leg|itinerar|program|transfer|flight|train|travel plan|schedule|stops?\b/)) return routesSummary();
-                if (has(/\bwarning|check|ready|critical|risk|problem|issue|missed\b/)) return tripChecks();
+                if (ft && /\b(get|go|travel|route|fly|train|drive|how|way)\b/i.test(q)) return await routeBetween(...(/get\s+to/i.test(ft[0]) ? [ft[2], ft[1]] : [ft[1], ft[2]]));
+                if (has(/\broutes?|legs?|itinerary|program|transfers?|flights?|trains?|travel plan|schedule|stops?|accommodation|hotel|booked\b/)) return routesSummary();
+                if (has(/\bwarnings?|checks?|ready|critical|risks?|problems?|issues?\b/)) return tripChecks();
                 const cs = countriesIn(q);
-                if (cs.length && has(/\btell me|about|info|overview|what.*like|best time|when\b/)) return countryOverview(cs[0]);
+                if (cs.length) return countryOverview(cs[0]);
+                // A question about the user's own data we couldn't match: never answer it with a random web page
+                if (personal) return `I'm not sure what you mean with “${esc(qRaw)}”. Here's what I can look up in your data:` + helpHtml(true);
                 return await webLookup(q);
+            }
+            function helpHtml(short) {
+                return `${short ? '' : '<b>I can help with:</b>'}<ul>${li('<b>Packing</b> — “what clothing did I add?”, “what is not packed?”, “check my packing”, “flagged items”')}${li('<b>Trip</b> — “when do I leave?”, “my routes”, “trip warnings”, “how do I get from Amsterdam to Beckum?”')}${li('<b>Countries</b> — “visa for Turkey”, “vaccinations for Kenya”, “weather in Bali in July”, “is Peru safe?”')}${li('<b>Your lists</b> — “my sites to visit”, “countries I have visited”, “my wish list”, “my budget”, “my tasks”')}</ul>${apiKey() ? '' : '<div class="text-[11px] text-gray-500">Anything else: add an AI key under ⚙ for full answers with web search.</div>'}`;
+            }
+            function listItems(cat, low) {
+                const lists = cat ? [cat] : (plannerState.packingList || []);
+                const want = /\bunpacked|not packed|still (need|to pack)|left to pack|haven'?t packed|not yet packed\b/.test(low) ? 'unpacked' : (/\b(already )?packed\b|did i pack|have i packed/.test(low) && !/\bpacking\b/.test(low)) ? 'packed' : 'all';
+                const rows = [];
+                let total = 0;
+                lists.forEach(c => {
+                    let items = (c.items || []);
+                    if (want === 'unpacked') items = items.filter(i => !i.packed); else if (want === 'packed') items = items.filter(i => i.packed);
+                    total += items.length;
+                    if (items.length || cat) rows.push(`<div class="mt-2 font-semibold">${esc(c.name)} <span class="text-gray-400 text-xs font-normal">${(c.items || []).filter(i => i.packed).length}/${(c.items || []).length} packed</span></div>${items.length ? `<ul>${items.map(i => li(`${esc(i.text)}${i.priority || c.priority ? ' <span class="text-red-300 text-xs">! flagged</span>' : ''}${i.packed ? ' <span class="text-emerald-300 text-xs">✓ packed</span>' : ''}`, i.packed ? 'good' : (i.priority || c.priority) ? 'bad' : '')).join('')}</ul>` : `<div class="text-gray-400 text-xs">No ${want === 'all' ? '' : want + ' '}items${cat ? ' in this category' : ''} yet.</div>`}`);
+                });
+                const label = want === 'unpacked' ? 'Not packed yet' : want === 'packed' ? 'Packed' : cat ? `Your ${esc(cat.name.toLowerCase())}` : 'Your packing list';
+                const allIt = lists.flatMap(c => c.items || []), pk = allIt.filter(i => i.packed).length;
+                return `<h4>${label} (${total})</h4><div class="text-xs text-gray-400">${allIt.length} item${allIt.length === 1 ? '' : 's'}${cat ? ' in ' + esc(cat.name) : ' in total'} · <b class="text-emerald-300">${pk} packed</b> · <b class="text-amber-300">${allIt.length - pk} still to pack</b></div>${rows.join('') || '<div class="text-gray-400">Your packing list is empty.</div>'}`;
+            }
+            function sitesList(q) {
+                const cs = countriesIn(q), all = plannerState.sitesToVisit || [];
+                const list = cs.length ? all.filter(s => cs.includes(s.country)) : all;
+                if (!list.length) return cs.length ? `You have no sites saved in ${esc(cs.map(displayName).join(', '))}.` : `You haven't saved any sites yet. Add them on <a href="#" data-go="sites-page">Sites to Visit</a> or right-click the map → Add to Sites to Visit.`;
+                const by = {}; list.forEach(s => (by[s.country || 'Other'] = by[s.country || 'Other'] || []).push(s));
+                return `<h4>Sites to visit (${list.length})</h4>` + Object.entries(by).map(([c, l]) => `<div class="mt-2 font-semibold">${esc(c === 'Other' ? 'Other' : displayName(c))}</div><ul>${l.map(s => li(`${s.starred ? '★ ' : ''}${esc(s.name)}${s.type && s.type !== 'Other' ? ` <span class="text-gray-400 text-xs">· ${esc(s.type)}</span>` : ''}${s.visitYear ? ` <span class="text-gray-400 text-xs">· ${esc(s.visitYear)}</span>` : ''}`)).join('')}</ul>`).join('');
+            }
+            function countriesList(low) {
+                const groups = { visited: 'Visited', topWishlist: 'Top wish list', wishlist: 'Wish list' };
+                const pick = /visited|been to/.test(low) ? ['visited'] : /top/.test(low) ? ['topWishlist'] : /wish/.test(low) ? ['topWishlist', 'wishlist'] : Object.keys(groups);
+                return pick.map(k => { const l = Object.entries(countryCategories).filter(([, v]) => v === k).map(([n]) => n).sort((a, b) => displayName(a).localeCompare(displayName(b))); return `<h4>${groups[k]} (${l.length})</h4>${l.length ? `<ul>${l.map(n => li(`${esc(displayName(n))}${k !== 'visited' ? ` <span class="text-xs" style="color:${(VISA_META[getCountryInfo(n).status] || {}).color}">· ${esc((VISA_META[getCountryInfo(n).status] || {}).label || '')}</span>` : ''}`)).join('')}</ul>` : '<div class="text-gray-400 text-xs">None yet — click a country on the map to add it.</div>'}`; }).join('');
+            }
+            function budgetInfo() {
+                const b = (plannerState.budget || []).filter(x => x.name);
+                const num = v => parseFloat(String(v || '').replace(/[^\d.]/g, '')) || 0;
+                const tot = b.reduce((a, x) => a + num(x.cost), 0);
+                if (!tot) return `Your budget is still empty — fill it in under <a href="#" data-go="planner-page">Trip Planner → Budget</a>.`;
+                return `<h4>Budget · R ${tot.toLocaleString('en-ZA')}</h4><ul>${b.map(x => li(`${esc(x.name)}: ${num(x.cost) ? 'R ' + num(x.cost).toLocaleString('en-ZA') : '<span class="text-gray-400">—</span>'}`)).join('')}</ul>`;
+            }
+            function tasksInfo() {
+                const ts = plannerState.tasks || [];
+                const open = ts.flatMap(t => (t.subtasks || []).filter(s => !s.completed).map(s => [t.name, s.text]));
+                return `<h4>Tasks</h4><ul>${ts.map(t => { const n = (t.subtasks || []).length, d = (t.subtasks || []).filter(s => s.completed).length; return li(`${t.important ? '<span class="text-red-300">!</span> ' : ''}<b>${esc(t.name)}</b> <span class="text-gray-400 text-xs">${n ? `${d}/${n} done` : 'no sub-tasks'}</span>${t.description ? `<br><span class="text-xs text-gray-300">${esc(t.description.slice(0, 160))}</span>` : ''}`, n && d === n ? 'good' : ''); }).join('')}</ul>${open.length ? `<h4>Still to do (${open.length})</h4><ul>${open.slice(0, 15).map(([a, b]) => li(`${esc(b)} <span class="text-gray-400 text-xs">· ${esc(a)}</span>`, 'warn')).join('')}</ul>` : ''}`;
+            }
+            function tripDates(low) {
+                const sn = snap(); if (!sn || !sn.sched || !sn.sched.stays.length) return noTrip;
+                const now = Date.now(), dd = Math.ceil((sn.sched.start - now) / DAYMS), len = Math.round((sn.sched.end - sn.sched.start) / DAYMS);
+                return `<h4>Your trip dates</h4><ul>${li(`<b>Leave:</b> ${sn.fmtDate(sn.sched.legs[0] ? sn.sched.legs[0].dep : sn.sched.start, { weekday: 'long', year: 'numeric' })}${sn.sched.legs[0] ? ` at ${sn.fmtTime(sn.sched.legs[0].dep)} (${esc(sn.sched.legs[0].cache ? sn.sched.legs[0].cache.title : 'first leg')})` : ''}${sn.trip.homePlace ? ` from ${esc(sn.trip.homePlace.name)}` : ''}`)}${li(`<b>Back home:</b> ${sn.fmtDate(sn.sched.end, { weekday: 'long', year: 'numeric' })}`)}${li(`<b>Length:</b> ${len} days · ${sn.workingDays} working days of leave`)}${li(dd > 0 ? `<b>${dd} day${dd === 1 ? '' : 's'} to go</b>` : dd > -len ? '<b>You are travelling now</b> — enjoy!' : 'This trip is in the past.', 'good')}</ul>`;
             }
 
             // Packing
@@ -6403,7 +6487,7 @@ Caribbean|JM|18.00|-72.00|5`;
                 }
                 return out;
             }
-            async function packingCheck() {
+            async function packingCheck(onlyCat) {
                 const items = allItems(), txt = items.map(i => i.text.toLowerCase()).join(' | ');
                 const hasItem = rx => rx.test(txt);
                 const sn = snap(), stops = tripStops(), cs = tripCountries();
@@ -6434,11 +6518,12 @@ Caribbean|JM|18.00|-72.00|5`;
                     ['Clothing', 'Swimwear', /swim|bikini|costume|trunks|cozzie/, hot], ['Clothing', 'Comfortable walking shoes', /shoe|sneaker|takkies|boots|trainers/, true], ['Clothing', 'Sleepwear', /pyjama|pajama|sleepwear|pj/, true],
                     ['Carry-on', 'Neck pillow & eye mask', /pillow|eye ?mask/, longFlight], ['Carry-on', 'Reusable water bottle', /bottle/, true], ['Carry-on', 'Pen (arrival forms)', /\bpen\b/, cs.length]
                 ];
-                const miss = RULES.filter(r => r[3] && !hasItem(r[2]));
+                const CAT_OF = { documentation: 'Documents', electronics: 'Electronics', health: 'Health', toiletries: 'Toiletries', clothing: 'Clothing', carryon: 'Carry-on' };
+                const miss = RULES.filter(r => r[3] && !hasItem(r[2]) && (!onlyCat || CAT_OF[onlyCat.id] === r[0]));
                 const byCat = {}; miss.forEach(r => (byCat[r[0]] = byCat[r[0]] || []).push(r[1]));
                 const unpacked = items.filter(i => !i.packed), flaggedLeft = items.filter(i => (i.priority || i.catPriority) && !i.packed);
                 const why = [cold && 'cold nights at some stops', hot && 'hot days', wet && 'rainy weather', health.some(([, h]) => h.malaria) && 'malaria risk', longFlight && 'a long-haul flight', driving && 'driving legs'].filter(Boolean);
-                let h = `<h4>Packing check</h4>${items.length ? `You have <b>${items.length}</b> items, <b>${items.length - unpacked.length}</b> packed.` : 'Your packing list is empty.'}${stops.length ? ` Checked against your trip to <b>${esc(cs.map(displayName).join(', ') || 'your stops')}</b>${why.length ? ` (${why.join(', ')})` : ''}.` : ' Add trip stops so I can tailor this to your destinations and weather.'}`;
+                let h = `<h4>Packing check${onlyCat ? ' · ' + esc(onlyCat.name) : ''}</h4>${items.length ? `You have <b>${items.length}</b> items, <b>${items.length - unpacked.length}</b> packed.` : 'Your packing list is empty.'}${stops.length ? ` Checked against your trip to <b>${esc(cs.map(displayName).join(', ') || 'your stops')}</b>${why.length ? ` (${why.join(', ')})` : ''}.` : ' Add trip stops so I can tailor this to your destinations and weather.'}`;
                 if (!miss.length) h += `<div class="mt-2">Nothing obvious is missing. ✓</div>`;
                 else h += `<h4>Possibly missing (${miss.length})</h4>` + Object.entries(byCat).map(([c, l]) => `<div class="text-[11px] text-gray-400 mt-1">${c}</div><ul>${l.map(x => li(esc(x), 'warn')).join('')}</ul>`).join('');
                 if (flaggedLeft.length) h += `<h4>Flagged, not packed yet</h4><ul>${flaggedLeft.map(i => li(esc(i.text), 'bad')).join('')}</ul>`;
@@ -6587,13 +6672,16 @@ Caribbean|JM|18.00|-72.00|5`;
                 try {
                     const s = await fetchJson(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=3`, 7000);
                     const hits = (s.query && s.query.search) || [];
+                    const qWords = query.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+                    const relevant = x => qWords.some(w => (x.title + ' ' + strip(x.snippet)).toLowerCase().includes(w));
+                    hits.splice(0, hits.length, ...hits.filter(relevant));
                     if (hits.length && !h) {
                         const sum = await fetchJson(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hits[0].title.replace(/ /g, '_'))}`, 7000).catch(() => null);
                         h += `<p><b>${esc(hits[0].title)}</b> — ${esc((sum && sum.extract) || strip(hits[0].snippet)).slice(0, 700)}</p>`;
                     }
                     hits.forEach(x => srcs.push([`Wikipedia: ${x.title}`, `https://en.wikipedia.org/wiki/${encodeURIComponent(x.title.replace(/ /g, '_'))}`]));
                 } catch (e) { }
-                if (!h) h = `I couldn't find a quick answer to that offline.`;
+                if (!h) h = `I couldn't find a reliable quick answer to that. Try rephrasing, or ask about your trip, packing, visas, vaccinations or weather.`;
                 if (srcs.length) h += `<div class="src">Sources: ${srcs.slice(0, 4).map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(t)}</a>`).join(' · ')}</div>`;
                 if (!apiKey()) h += `<div class="text-[11px] text-gray-500 mt-2">For a full web-searched answer, add an AI key under ⚙.</div>`;
                 return h;
